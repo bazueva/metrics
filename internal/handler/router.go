@@ -24,8 +24,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, request *http.Request) {
 
 	paths := strings.Split(request.URL.Path, "/")
 	if len(paths) != 3 {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("invalid path"))
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
