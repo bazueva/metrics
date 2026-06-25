@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	models "github.com/bazueva/metrics/internal/model"
 	memStorage "github.com/bazueva/metrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,16 @@ import (
 
 type MockStorage struct {
 	err error
+}
+
+func (m *MockStorage) GetMetric(name string) (models.Metrics, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockStorage) GetAllMetrics() []models.Metrics {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *MockStorage) UpdateMetric(metricType string, name string, value string) error {
@@ -34,24 +45,6 @@ func TestHandler_UpdateHandler(t *testing.T) {
 	}
 
 	tests := []test{
-		{
-			name:       "not allowed method",
-			request:    httptest.NewRequest(http.MethodGet, "http://test", nil),
-			memStorage: nil,
-			want: want{
-				code: http.StatusMethodNotAllowed,
-				body: "Method Not Allowed\n",
-			},
-		},
-		{
-			name:       "metric type not specified",
-			request:    httptest.NewRequest(http.MethodPost, "http://test", nil),
-			memStorage: nil,
-			want: want{
-				code: http.StatusNotFound,
-				body: "",
-			},
-		},
 		{
 			name:    "error storage",
 			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", nil),

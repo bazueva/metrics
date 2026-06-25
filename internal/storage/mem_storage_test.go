@@ -16,9 +16,8 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 	}
 
 	type want struct {
-		gauges   map[string]float64
-		counters map[string]int64
-		err      error
+		metrics map[string]models.Metrics
+		err     error
 	}
 
 	type test struct {
@@ -32,9 +31,8 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 			name: "empty metric name",
 			args: args{},
 			want: want{
-				gauges:   make(map[string]float64),
-				counters: make(map[string]int64),
-				err:      ErrEmptyMetricName,
+				metrics: make(map[string]models.Metrics),
+				err:     ErrEmptyMetricName,
 			},
 		},
 		{
@@ -43,9 +41,8 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				metricName: "test",
 			},
 			want: want{
-				err:      ErrInvalidMetricValue,
-				gauges:   make(map[string]float64),
-				counters: make(map[string]int64),
+				err:     ErrInvalidMetricValue,
+				metrics: make(map[string]models.Metrics),
 			},
 		},
 		{
@@ -56,9 +53,8 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				metricValue: "value",
 			},
 			want: want{
-				err:      ErrInvalidMetricType,
-				gauges:   make(map[string]float64),
-				counters: make(map[string]int64),
+				err:     ErrInvalidMetricType,
+				metrics: make(map[string]models.Metrics),
 			},
 		},
 		{
@@ -69,9 +65,8 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				metricValue: "value",
 			},
 			want: want{
-				err:      ErrInvalidGaugeValue,
-				gauges:   make(map[string]float64),
-				counters: make(map[string]int64),
+				err:     ErrInvalidGaugeValue,
+				metrics: make(map[string]models.Metrics),
 			},
 		},
 		{
@@ -82,9 +77,8 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				metricValue: "value",
 			},
 			want: want{
-				err:      ErrInvalidCounterValue,
-				gauges:   make(map[string]float64),
-				counters: make(map[string]int64),
+				err:     ErrInvalidCounterValue,
+				metrics: make(map[string]models.Metrics),
 			},
 		},
 		{
@@ -95,9 +89,14 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				metricValue: "1",
 			},
 			want: want{
-				gauges:   make(map[string]float64),
-				counters: map[string]int64{"test": 1},
-				err:      nil,
+				metrics: map[string]models.Metrics{
+					"test": {
+						ID:    "test",
+						MType: models.Counter,
+						Delta: new(int64(1)),
+					},
+				},
+				err: nil,
 			},
 		},
 		{
@@ -108,9 +107,14 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				metricValue: "1",
 			},
 			want: want{
-				gauges:   map[string]float64{"test": 1},
-				counters: make(map[string]int64),
-				err:      nil,
+				metrics: map[string]models.Metrics{
+					"test": {
+						ID:    "test",
+						MType: models.Gauge,
+						Value: new(float64(1)),
+					},
+				},
+				err: nil,
 			},
 		},
 		{
@@ -120,13 +124,22 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				metricName:  "test",
 				metricValue: "2",
 				setup: func(storage *MemStorage) {
-					storage.gauges["test"] = 1
+					storage.metrics["test"] = models.Metrics{
+						ID:    "test",
+						MType: models.Gauge,
+						Delta: new(int64(1)),
+					}
 				},
 			},
 			want: want{
-				gauges:   map[string]float64{"test": 2},
-				counters: make(map[string]int64),
-				err:      nil,
+				metrics: map[string]models.Metrics{
+					"test": {
+						ID:    "test",
+						MType: models.Gauge,
+						Value: new(float64(2)),
+					},
+				},
+				err: nil,
 			},
 		},
 		{
@@ -136,13 +149,22 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				metricName:  "count",
 				metricValue: "2",
 				setup: func(storage *MemStorage) {
-					storage.counters["count"] = 1000
+					storage.metrics["count"] = models.Metrics{
+						ID:    "count",
+						MType: models.Counter,
+						Delta: new(int64(1000)),
+					}
 				},
 			},
 			want: want{
-				gauges:   make(map[string]float64),
-				counters: map[string]int64{"count": 1002},
-				err:      nil,
+				metrics: map[string]models.Metrics{
+					"count": {
+						ID:    "count",
+						MType: models.Counter,
+						Delta: new(int64(1002)),
+					},
+				},
+				err: nil,
 			},
 		},
 		{
@@ -153,9 +175,14 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				metricValue: " 2",
 			},
 			want: want{
-				gauges:   make(map[string]float64),
-				counters: map[string]int64{"count": 2},
-				err:      nil,
+				metrics: map[string]models.Metrics{
+					"count": {
+						ID:    "count",
+						MType: models.Counter,
+						Delta: new(int64(2)),
+					},
+				},
+				err: nil,
 			},
 		},
 	}
@@ -169,8 +196,7 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 
 			err := storage.UpdateMetric(tt.args.metricType, tt.args.metricName, tt.args.metricValue)
 
-			assert.Equal(t, tt.want.counters, storage.counters)
-			assert.Equal(t, tt.want.gauges, storage.gauges)
+			assert.Equal(t, tt.want.metrics, storage.metrics)
 
 			if tt.want.err != nil {
 				assert.ErrorIs(t, err, tt.want.err)

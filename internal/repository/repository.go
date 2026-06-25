@@ -2,7 +2,8 @@ package repository
 
 import (
 	"fmt"
-	"net/http"
+
+	resty "github.com/go-resty/resty/v2"
 )
 
 const url = "http://localhost:8080"
@@ -21,12 +22,14 @@ func NewRepository() *repository {
 func (r *repository) SendMetric(metricType string, metricName string, metricValue string) error {
 	updateUrl := fmt.Sprintf("%s/update/%s/%s/%s", url, metricType, metricName, metricValue)
 
-	response, err := http.Post(updateUrl, "text/plain", nil)
+	client := resty.New()
+
+	_, err := client.R().
+		SetHeader("Content-Type", "text/plain").
+		Post(updateUrl)
 	if err != nil {
 		return err
 	}
-
-	defer response.Body.Close()
 
 	return nil
 }

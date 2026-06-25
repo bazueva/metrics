@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -10,6 +11,8 @@ import (
 
 type Storage interface {
 	UpdateMetric(metricType string, name string, value string) error
+	GetMetric(name string) (models.Metrics, error)
+	GetAllMetrics() []models.Metrics
 }
 
 var (
@@ -18,11 +21,34 @@ var (
 	ErrInvalidCounterValue = errors.New("invalid value for counter")
 	ErrEmptyMetricName     = errors.New("empty metric name")
 	ErrInvalidMetricValue  = errors.New("empty value for metric")
+	ErrNotFoundMetric      = errors.New("not found")
 )
 
 type MemStorage struct {
-	gauges   map[string]float64
-	counters map[string]int64
+	metrics map[string]models.Metrics
+}
+
+func (ms *MemStorage) GetAllMetrics() []models.Metrics {
+	result := make([]models.Metrics, 0, len(ms.metrics))
+
+	for _, metric := range ms.metrics {
+		result = append(result, metric)
+	}
+
+	sort.SliceStable(result, func(i, j int) bool {
+		return result[i].ID < result[j].ID
+	})
+
+	return result
+}
+
+func (ms *MemStorage) GetMetric(metricName string) (models.Metrics, error) {
+	metric, found := ms.metrics[metricName]
+	if !found {
+		return models.Metrics{}, ErrNotFoundMetric
+	}
+
+	return metric, nil
 }
 
 func (ms *MemStorage) UpdateMetric(metricType string, name string, value string) error {
@@ -53,7 +79,11 @@ func (ms *MemStorage) addGauge(name string, value string) error {
 		return ErrInvalidGaugeValue
 	}
 
-	ms.gauges[name] = gauge
+	ms.metrics[name] = models.Metrics{
+		ID:    name,
+		MType: models.Gauge,
+		Value: &gauge,
+	}
 
 	return nil
 }
@@ -64,14 +94,21 @@ func (ms *MemStorage) addCounter(name string, value string) error {
 		return ErrInvalidCounterValue
 	}
 
-	ms.counters[name] += int64(counter)
+	if metric, found := ms.metrics[name]; found {
+		*metric.Delta += int64(counter)
+	} else {
+		ms.metrics[name] = models.Metrics{
+			ID:    name,
+			MType: models.Counter,
+			Delta: new(int64(counter)),
+		}
+	}
 
 	return nil
 }
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		gauges:   make(map[string]float64),
-		counters: make(map[string]int64),
+		metrics: make(map[string]models.Metrics),
 	}
 }
