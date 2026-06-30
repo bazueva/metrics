@@ -10,13 +10,13 @@ import (
 	"github.com/bazueva/metrics/internal/repository"
 )
 
-const pollInterval = 2 * time.Second
-const reportInterval = 10 * time.Second
+const pollInterval = 2
+const reportInterval = 10
 
 type config struct {
 	metricServerAddr config2.ServerAddr
-	reportInterval   time.Duration
-	pollInterval     time.Duration
+	reportInterval   int
+	pollInterval     int
 }
 
 func readConfig() config {
@@ -51,12 +51,12 @@ func main() {
 		for {
 			metrics = collector.MetricsSnapshot(counter)
 			counter++
-			time.Sleep(agentConfig.pollInterval)
+			time.Sleep(time.Duration(agentConfig.pollInterval) * time.Second)
 		}
 	}()
 
 	for {
-		time.Sleep(agentConfig.reportInterval)
+		time.Sleep(time.Duration(agentConfig.reportInterval) * time.Second)
 
 		err := metricSender.SendSnapshot(metrics)
 		if err != nil {
