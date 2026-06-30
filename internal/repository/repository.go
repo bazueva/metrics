@@ -6,21 +6,26 @@ import (
 	resty "github.com/go-resty/resty/v2"
 )
 
-const url = "http://localhost:8080"
-
 type MetricSender interface {
 	SendMetric(metricType string, metricName string, metricValue string) error
 }
 
 type repository struct {
+	addr string
 }
 
-func NewRepository() *repository {
-	return &repository{}
+func NewRepository(addr string) (*repository, error) {
+	if addr == "" {
+		return nil, fmt.Errorf("Не указан адрес сервера")
+	}
+
+	return &repository{
+		addr: addr,
+	}, nil
 }
 
 func (r *repository) SendMetric(metricType string, metricName string, metricValue string) error {
-	updateUrl := fmt.Sprintf("%s/update/%s/%s/%s", url, metricType, metricName, metricValue)
+	updateUrl := fmt.Sprintf("%s/update/%s/%s/%s", r.addr, metricType, metricName, metricValue)
 
 	client := resty.New()
 
