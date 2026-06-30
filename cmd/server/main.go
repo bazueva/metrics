@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"net/http"
 
@@ -12,11 +11,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
-
-func parseFlags(config *config.ServerAddr) {
-	flag.Var(config, "a", "address http server")
-	flag.Parse()
-}
 
 func main() {
 	serverAddr := config.ServerAddr{
