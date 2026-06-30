@@ -34,7 +34,6 @@ func readConfig() config {
 
 func main() {
 	agentConfig := readConfig()
-	fmt.Println(agentConfig)
 
 	metricRepository, err := repository.NewRepository(fmt.Sprintf("http://%s", agentConfig.metricServerAddr.String()))
 	if err != nil {
