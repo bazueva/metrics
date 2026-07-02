@@ -11,15 +11,15 @@ import (
 )
 
 type Handler struct {
-	memStorage memStorage.Storage
+	storage memStorage.Storage
 }
 
 func NewHandler(memStorage memStorage.Storage) *Handler {
-	return &Handler{memStorage: memStorage}
+	return &Handler{storage: memStorage}
 }
 
 func (h *Handler) UpdateHandler(w http.ResponseWriter, request *http.Request) {
-	err := h.memStorage.UpdateMetric(
+	err := h.storage.UpdateMetric(
 		request.PathValue("metricType"),
 		request.PathValue("metricName"),
 		request.PathValue("metricValue"),
@@ -34,7 +34,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, request *http.Request) {
 }
 
 func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Request) {
-	result, err := h.memStorage.GetMetric(request.PathValue("metricName"))
+	result, err := h.storage.GetMetric(request.PathValue("metricName"))
 	if err != nil {
 		errorHandler(writer, err)
 
@@ -56,7 +56,7 @@ func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Req
 }
 
 func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http.Request) {
-	for _, metric := range h.memStorage.GetAllMetrics() {
+	for _, metric := range h.storage.GetAllMetrics() {
 		switch metric.MType {
 		case models.Counter:
 			writer.Write([]byte(fmt.Sprintf("%s - %d \n", metric.ID, *metric.Delta)))

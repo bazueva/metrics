@@ -2,16 +2,14 @@ package repository
 
 import (
 	"fmt"
+	"net/http"
 
 	resty "github.com/go-resty/resty/v2"
 )
 
-type MetricSender interface {
-	SendMetric(metricType string, metricName string, metricValue string) error
-}
-
 type repository struct {
-	addr string
+	addr   string
+	client *resty.Client
 }
 
 func NewRepository(addr string) (*repository, error) {
@@ -20,20 +18,23 @@ func NewRepository(addr string) (*repository, error) {
 	}
 
 	return &repository{
-		addr: addr,
+		addr:   addr,
+		client: resty.New(),
 	}, nil
 }
 
 func (r *repository) SendMetric(metricType string, metricName string, metricValue string) error {
 	updateUrl := fmt.Sprintf("%s/update/%s/%s/%s", r.addr, metricType, metricName, metricValue)
 
-	client := resty.New()
-
-	_, err := client.R().
+	response, err := r.client.R().
 		SetHeader("Content-Type", "text/plain").
 		Post(updateUrl)
 	if err != nil {
 		return err
+	}
+
+	if response.StatusCode() != http.StatusOK {
+		return fmt.Errorf("Ошибка отправки метрик: статус - %d, ответ - %s", response.StatusCode(), response.String())
 	}
 
 	return nil
