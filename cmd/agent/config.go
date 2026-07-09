@@ -4,7 +4,6 @@ import (
 	"flag"
 	"os"
 	"strings"
-	"time"
 
 	configpkg "github.com/bazueva/metrics/cmd/config"
 	"github.com/bazueva/metrics/internal/agent"
@@ -13,8 +12,8 @@ import (
 
 type config struct {
 	MetricServerAddr configpkg.ServerAddr `env:"ADDRESS"`
-	ReportInterval   time.Duration        `env:"REPORT_INTERVAL"`
-	PollInterval     time.Duration        `env:"POLL_INTERVAL"`
+	ReportInterval   int                  `env:"REPORT_INTERVAL"`
+	PollInterval     int                  `env:"POLL_INTERVAL"`
 }
 
 func readConfig() (config, error) {
@@ -42,8 +41,8 @@ func parseFlags(config *config) error {
 	agentFlags := flag.NewFlagSet("", flag.ContinueOnError)
 	agentFlags.Var(&config.MetricServerAddr, "a", "Адрес сервера для отправки метрик")
 
-	agentFlags.DurationVar(&config.PollInterval, "p", agent.PollInterval, "Частота опроса метрик")
-	agentFlags.DurationVar(&config.ReportInterval, "r", agent.ReportInterval, "Частота отправки метрик на сервер")
+	agentFlags.IntVar(&config.PollInterval, "p", agent.PollInterval, "Частота опроса метрик")
+	agentFlags.IntVar(&config.ReportInterval, "r", agent.ReportInterval, "Частота отправки метрик на сервер")
 
 	if len(os.Args) > 1 {
 		err := agentFlags.Parse(os.Args[1:])

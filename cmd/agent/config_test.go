@@ -4,7 +4,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	configpkg "github.com/bazueva/metrics/cmd/config"
 	"github.com/bazueva/metrics/internal/agent"
@@ -48,21 +47,21 @@ func Test_readConfig(t *testing.T) {
 		{
 			name: "with REPORT_INTERVAL env",
 			envVars: map[string]string{
-				"REPORT_INTERVAL": "2s",
+				"REPORT_INTERVAL": "2",
 			},
 			want: config{
 				MetricServerAddr: configpkg.ServerAddr{
 					Host: "localhost",
 					Port: 8080,
 				},
-				ReportInterval: time.Second * 2,
+				ReportInterval: 2,
 				PollInterval:   agent.PollInterval,
 			},
 		},
 		{
 			name: "with POLL_INTERVAL env",
 			envVars: map[string]string{
-				"POLL_INTERVAL": "5s",
+				"POLL_INTERVAL": "5",
 			},
 			want: config{
 				MetricServerAddr: configpkg.ServerAddr{
@@ -70,14 +69,14 @@ func Test_readConfig(t *testing.T) {
 					Port: 8080,
 				},
 				ReportInterval: agent.ReportInterval,
-				PollInterval:   time.Second * 5,
+				PollInterval:   5,
 			},
 		},
 		{
 			name: "with all envs",
 			envVars: map[string]string{
-				"POLL_INTERVAL":   "5s",
-				"REPORT_INTERVAL": "5s",
+				"POLL_INTERVAL":   "5",
+				"REPORT_INTERVAL": "5",
 				"ADDRESS":         "test:8900",
 			},
 			want: config{
@@ -85,8 +84,8 @@ func Test_readConfig(t *testing.T) {
 					Host: "test",
 					Port: 8900,
 				},
-				ReportInterval: time.Second * 5,
-				PollInterval:   time.Second * 5,
+				ReportInterval: 5,
+				PollInterval:   5,
 			},
 		},
 		{
@@ -96,16 +95,16 @@ func Test_readConfig(t *testing.T) {
 					Host: "local",
 					Port: 1111,
 				},
-				ReportInterval: time.Second * 48,
-				PollInterval:   time.Second * 19,
+				ReportInterval: 48,
+				PollInterval:   19,
 			},
-			args: []string{"cmd", "-a", "local:1111", "-p", "19s", "-r", "48s"},
+			args: []string{"cmd", "-a", "local:1111", "-p", "19", "-r", "48"},
 		},
 		{
 			name: "with args and envs",
 			envVars: map[string]string{
-				"POLL_INTERVAL":   "5s",
-				"REPORT_INTERVAL": "5s",
+				"POLL_INTERVAL":   "5",
+				"REPORT_INTERVAL": "5",
 				"ADDRESS":         "test:8900",
 			},
 			want: config{
@@ -113,10 +112,10 @@ func Test_readConfig(t *testing.T) {
 					Host: "test",
 					Port: 8900,
 				},
-				ReportInterval: time.Second * 5,
-				PollInterval:   time.Second * 5,
+				ReportInterval: 5,
+				PollInterval:   5,
 			},
-			args: []string{"cmd", "-a", "local:1111", "-p", "19s", "-r", "48s"},
+			args: []string{"cmd", "-a", "local:1111", "-p", "19", "-r", "48"},
 		},
 	}
 
