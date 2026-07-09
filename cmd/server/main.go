@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/bazueva/metrics/cmd/config"
 	"github.com/bazueva/metrics/internal/handler"
 	"github.com/bazueva/metrics/internal/storage"
 	"github.com/go-chi/chi/v5/middleware"
@@ -13,11 +12,10 @@ import (
 )
 
 func main() {
-	serverAddr := config.ServerAddr{
-		Host: "localhost",
-		Port: 8080,
+	cfg, err := readConfig()
+	if err != nil {
+		panic(err)
 	}
-	parseFlags(&serverAddr)
 
 	memStorage := storage.NewMemStorage()
 	httpHandler := handler.NewHandler(memStorage)
@@ -29,7 +27,7 @@ func main() {
 	router.Get("/value/{metricType}/{metricName}", httpHandler.GetMetricHandler)
 	router.Get("/", httpHandler.GetAllMetricsHandler)
 
-	if err := http.ListenAndServe(serverAddr.String(), router); err != nil {
+	if err := http.ListenAndServe(cfg.ServerAddr.String(), router); err != nil {
 		fmt.Println(err)
 	}
 }

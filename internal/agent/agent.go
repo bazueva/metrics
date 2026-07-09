@@ -9,8 +9,8 @@ import (
 	models "github.com/bazueva/metrics/internal/model"
 )
 
-const PollInterval = 2
-const ReportInterval = 10
+const PollInterval = time.Second * 2
+const ReportInterval = time.Second * 10
 
 type Collector interface {
 	MetricsSnapshot(counter int64) []models.Metrics
@@ -24,8 +24,8 @@ type agent struct {
 	collector      Collector
 	repository     SenderRepository
 	metrics        []models.Metrics
-	reportInterval int
-	pollInterval   int
+	reportInterval time.Duration
+	pollInterval   time.Duration
 
 	mu sync.Mutex
 }
@@ -33,8 +33,8 @@ type agent struct {
 func NewAgent(
 	collector Collector,
 	repository SenderRepository,
-	pollInterval int,
-	reportInterval int,
+	pollInterval time.Duration,
+	reportInterval time.Duration,
 ) *agent {
 	return &agent{
 		collector:      collector,
@@ -51,12 +51,12 @@ func (a *agent) Run() {
 		for {
 			a.updateMetric(counter)
 			counter++
-			time.Sleep(time.Duration(a.pollInterval) * time.Second)
+			time.Sleep(a.pollInterval)
 		}
 	}()
 
 	for {
-		time.Sleep(time.Duration(a.reportInterval) * time.Second)
+		time.Sleep(a.reportInterval)
 
 		err := a.sendSnapshot()
 		if err != nil {
