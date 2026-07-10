@@ -7,9 +7,8 @@ import (
 	"github.com/bazueva/metrics/internal/handler"
 	"github.com/bazueva/metrics/internal/logger"
 	"github.com/bazueva/metrics/internal/storage"
-	"go.uber.org/zap"
-
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -18,7 +17,7 @@ func main() {
 		panic(err)
 	}
 
-	cfg.logger, err = zap.NewDevelopment()
+	cfg.logger, err = zap.NewProduction()
 	if err != nil {
 		panic(err)
 	}
