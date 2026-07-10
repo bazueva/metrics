@@ -5,8 +5,9 @@ import (
 	"net/http"
 
 	"github.com/bazueva/metrics/internal/handler"
+	"github.com/bazueva/metrics/internal/logger"
 	"github.com/bazueva/metrics/internal/storage"
-	"github.com/go-chi/chi/v5/middleware"
+	"go.uber.org/zap"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -17,11 +18,18 @@ func main() {
 		panic(err)
 	}
 
+	cfg.logger, err = zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+
+	defer cfg.logger.Sync()
+
 	memStorage := storage.NewMemStorage()
 	httpHandler := handler.NewHandler(memStorage)
 
 	router := chi.NewRouter()
-	router.Use(middleware.Logger)
+	router.Use(logger.ServerLogger(cfg.logger))
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", httpHandler.UpdateHandler)
 	router.Get("/value/{metricType}/{metricName}", httpHandler.GetMetricHandler)

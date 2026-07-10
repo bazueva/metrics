@@ -6,10 +6,13 @@ import (
 
 	configpkg "github.com/bazueva/metrics/cmd/config"
 	"github.com/caarlos0/env/v11"
+	"go.uber.org/zap"
 )
 
 type config struct {
 	ServerAddr configpkg.ServerAddr `env:"ADDRESS"`
+
+	logger *zap.Logger
 }
 
 func readConfig() (config, error) {
