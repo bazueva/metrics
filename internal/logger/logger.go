@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"io"
 	"net/http"
 	"time"
 
@@ -23,12 +24,16 @@ func ServerLogger(logger Logger) func(next http.Handler) http.Handler {
 
 			end := time.Since(start)
 
+			body, _ := io.ReadAll(r.Body)
+			defer r.Body.Close()
+
 			logger.Info("request data",
 				zap.String("uri", r.RequestURI),
 				zap.String("method", r.Method),
 				zap.Duration("time", end),
 				zap.Int("statusCode", ww.Status()),
 				zap.Int("bytes", ww.BytesWritten()),
+				zap.ByteString("body", body),
 			)
 		}
 
