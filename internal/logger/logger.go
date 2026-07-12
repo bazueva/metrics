@@ -20,12 +20,12 @@ func ServerLogger(logger Logger) func(next http.Handler) http.Handler {
 
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
+			body, _ := io.ReadAll(r.Body)
+			defer r.Body.Close()
+
 			next.ServeHTTP(ww, r)
 
 			end := time.Since(start)
-
-			body, _ := io.ReadAll(r.Body)
-			defer r.Body.Close()
 
 			logger.Info("request data",
 				zap.String("uri", r.RequestURI),

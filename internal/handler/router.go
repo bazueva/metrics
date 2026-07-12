@@ -87,23 +87,24 @@ func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http
 
 func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	body, err := io.ReadAll(request.Body)
-	if err != nil {
-		http.Error(writer, err.Error(), http.StatusBadRequest)
-	}
-
 	defer request.Body.Close()
+	if err != nil {
+		writeJsonError(writer, http.StatusBadRequest, err)
+
+		return
+	}
 
 	var metric models.Metrics
 	err = json.Unmarshal(body, &metric)
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusBadRequest)
+		writeJsonError(writer, http.StatusBadRequest, err)
 
 		return
 	}
 
 	err = h.storage.UpdateMetric(metric)
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusBadRequest)
+		writeJsonError(writer, http.StatusBadRequest, err)
 
 		return
 	}

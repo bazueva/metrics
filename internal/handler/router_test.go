@@ -296,7 +296,7 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 			memStorage: nil,
 			want: want{
 				code: http.StatusBadRequest,
-				body: "json: cannot unmarshal string into Go value of type models.Metrics\n",
+				body: `{"error":"json: cannot unmarshal string into Go value of type models.Metrics"}`,
 			},
 		},
 		{
@@ -310,7 +310,7 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 			}(),
 			want: want{
 				code: http.StatusBadRequest,
-				body: "ошибка\n",
+				body: `{"error":"ошибка"}`,
 			},
 		},
 		{
@@ -323,7 +323,7 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 			}(),
 			want: want{
 				code: http.StatusOK,
-				body: "",
+				body: ``,
 			},
 		},
 	}
@@ -342,7 +342,11 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.want.code, result.StatusCode)
-			assert.Equal(t, tt.want.body, string(body))
+
+			if tt.want.body != "" || string(body) != "" {
+				assert.JSONEq(t, tt.want.body, string(body))
+			}
+
 		})
 	}
 }

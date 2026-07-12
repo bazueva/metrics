@@ -33,7 +33,7 @@ func main() {
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", httpHandler.UpdateHandler)
 	router.Get("/value/{metricType}/{metricName}", httpHandler.GetMetricHandler)
 	router.Get("/", httpHandler.GetAllMetricsHandler)
-	router.Post("/update/", httpHandler.UpdateMetricHandler)
+	router.Post("/update", httpHandler.UpdateMetricHandler)
 	router.Post("/value/", httpHandler.ValueMetricHandler)
 
 	if err := http.ListenAndServe(cfg.ServerAddr.String(), router); err != nil {
