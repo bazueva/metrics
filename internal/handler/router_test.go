@@ -12,6 +12,7 @@ import (
 	memStorage "github.com/bazueva/metrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 type MockStorage struct {
@@ -330,7 +331,9 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage, nil)
+			logger, _ := zap.NewDevelopment()
+
+			handler := NewHandler(tt.memStorage, logger)
 			recorder := httptest.NewRecorder()
 
 			handler.UpdateMetricHandler(recorder, tt.request)
@@ -411,7 +414,9 @@ func TestHandler_ValueMetricHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage, nil)
+			logger, _ := zap.NewDevelopment()
+
+			handler := NewHandler(tt.memStorage, logger)
 			recorder := httptest.NewRecorder()
 
 			handler.ValueMetricHandler(recorder, tt.request)
