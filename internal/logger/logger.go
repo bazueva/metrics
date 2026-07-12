@@ -1,8 +1,6 @@
 package logger
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 	"time"
 
@@ -21,11 +19,6 @@ func ServerLogger(logger Logger) func(next http.Handler) http.Handler {
 
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
-			body, _ := io.ReadAll(r.Body)
-			defer r.Body.Close()
-
-			r.Body = io.NopCloser(bytes.NewReader(body))
-
 			next.ServeHTTP(ww, r)
 
 			end := time.Since(start)
@@ -36,7 +29,6 @@ func ServerLogger(logger Logger) func(next http.Handler) http.Handler {
 				zap.Duration("time", end),
 				zap.Int("statusCode", ww.Status()),
 				zap.Int("bytes", ww.BytesWritten()),
-				zap.ByteString("body", body),
 			)
 		}
 
