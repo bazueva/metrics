@@ -111,7 +111,7 @@ func TestHandler_UpdateHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage)
+			handler := NewHandler(tt.memStorage, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.UpdateHandler(recorder, tt.request)
@@ -192,7 +192,7 @@ func TestHandler_GetMetricHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage)
+			handler := NewHandler(tt.memStorage, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.GetMetricHandler(recorder, tt.request)
@@ -259,7 +259,7 @@ func TestHandler_GetAllMetricsHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage)
+			handler := NewHandler(tt.memStorage, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.GetAllMetricsHandler(recorder, tt.request)
@@ -330,7 +330,7 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage)
+			handler := NewHandler(tt.memStorage, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.UpdateMetricHandler(recorder, tt.request)
@@ -411,7 +411,7 @@ func TestHandler_ValueMetricHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage)
+			handler := NewHandler(tt.memStorage, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.ValueMetricHandler(recorder, tt.request)

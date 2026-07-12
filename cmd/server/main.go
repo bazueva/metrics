@@ -25,7 +25,7 @@ func main() {
 	defer cfg.logger.Sync()
 
 	memStorage := storage.NewMemStorage()
-	httpHandler := handler.NewHandler(memStorage)
+	httpHandler := handler.NewHandler(memStorage, cfg.logger)
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))

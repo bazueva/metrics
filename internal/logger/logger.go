@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"time"
@@ -22,6 +23,8 @@ func ServerLogger(logger Logger) func(next http.Handler) http.Handler {
 
 			body, _ := io.ReadAll(r.Body)
 			defer r.Body.Close()
+
+			r.Body = io.NopCloser(bytes.NewReader(body))
 
 			next.ServeHTTP(ww, r)
 

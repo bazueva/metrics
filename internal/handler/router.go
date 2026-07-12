@@ -10,6 +10,7 @@ import (
 
 	models "github.com/bazueva/metrics/internal/model"
 	memStorage "github.com/bazueva/metrics/internal/storage"
+	"go.uber.org/zap"
 )
 
 type Storage interface {
@@ -21,10 +22,14 @@ type Storage interface {
 
 type Handler struct {
 	storage Storage
+	logger  *zap.Logger
 }
 
-func NewHandler(memStorage Storage) *Handler {
-	return &Handler{storage: memStorage}
+func NewHandler(memStorage Storage, logger *zap.Logger) *Handler {
+	return &Handler{
+		storage: memStorage,
+		logger:  logger,
+	}
 }
 
 func (h *Handler) UpdateHandler(w http.ResponseWriter, request *http.Request) {
@@ -89,7 +94,7 @@ func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.
 	body, err := io.ReadAll(request.Body)
 	defer request.Body.Close()
 	if err != nil {
-		writeJsonError(writer, http.StatusBadRequest, err)
+		h.writeJsonError(writer, http.StatusBadRequest, err)
 
 		return
 	}
@@ -97,14 +102,14 @@ func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.
 	var metric models.Metrics
 	err = json.Unmarshal(body, &metric)
 	if err != nil {
-		writeJsonError(writer, http.StatusBadRequest, err)
+		h.writeJsonError(writer, http.StatusBadRequest, err)
 
 		return
 	}
 
 	err = h.storage.UpdateMetric(metric)
 	if err != nil {
-		writeJsonError(writer, http.StatusBadRequest, err)
+		h.writeJsonError(writer, http.StatusBadRequest, err)
 
 		return
 	}
@@ -114,18 +119,23 @@ func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.
 
 func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
-	decoder := json.NewDecoder(request.Body)
+	if request.ContentLength == 0 {
+		h.writeJsonError(writer, http.StatusBadRequest, fmt.Errorf("Не указана метрика"))
+
+		return
+	}
 
 	var metric models.Metrics
+	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&metric); err != nil {
-		writeJsonError(writer, http.StatusBadRequest, err)
+		h.writeJsonError(writer, http.StatusBadRequest, err)
 
 		return
 	}
 
 	resultMetric, err := h.storage.GetMetric(metric.ID)
 	if err != nil {
-		writeJsonError(writer, http.StatusNotFound, err)
+		h.writeJsonError(writer, http.StatusNotFound, err)
 
 		return
 	}
@@ -151,7 +161,8 @@ func errorHandler(writer http.ResponseWriter, err error) {
 	}
 }
 
-func writeJsonError(writer http.ResponseWriter, status int, err error) {
+func (h *Handler) writeJsonError(writer http.ResponseWriter, status int, err error) {
+	h.logger.Info(err.Error())
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(status)
 
