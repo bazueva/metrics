@@ -14,7 +14,7 @@ type SenderRepositoryMock struct {
 	callCount int
 }
 
-func (s *SenderRepositoryMock) SendMetric(metricType string, metricName string, metricValue string) error {
+func (s *SenderRepositoryMock) SendMetric(metric models.Metrics) error {
 	s.callCount++
 	return s.err
 }

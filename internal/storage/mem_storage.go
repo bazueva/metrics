@@ -9,12 +9,6 @@ import (
 	models "github.com/bazueva/metrics/internal/model"
 )
 
-type Storage interface {
-	UpdateMetric(metricType string, name string, value string) error
-	GetMetric(name string) (models.Metrics, error)
-	GetAllMetrics() []models.Metrics
-}
-
 var (
 	ErrInvalidMetricType   = errors.New("invalid metric type")
 	ErrInvalidGaugeValue   = errors.New("invalid value for gauge")
@@ -26,6 +20,53 @@ var (
 
 type MemStorage struct {
 	metrics map[string]models.Metrics
+}
+
+func (ms *MemStorage) CreateMetric(metricType string, name string, value string) (models.Metrics, error) {
+	switch metricType {
+	case models.Gauge:
+		gauge, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return models.Metrics{}, ErrInvalidGaugeValue
+		}
+
+		return models.Metrics{
+			ID:    name,
+			MType: metricType,
+			Value: &gauge,
+		}, nil
+	case models.Counter:
+		counter, err := strconv.Atoi(value)
+		if err != nil {
+			return models.Metrics{}, ErrInvalidCounterValue
+		}
+
+		return models.Metrics{
+			ID:    name,
+			MType: metricType,
+			Delta: new(int64(counter)),
+		}, nil
+	default:
+		return models.Metrics{}, ErrInvalidMetricType
+	}
+}
+
+func (ms *MemStorage) UpdateMetric(metric models.Metrics) error {
+	metric.ID = strings.TrimSpace(metric.ID)
+	if err := ms.validateMetric(metric); err != nil {
+		return err
+	}
+
+	switch metric.MType {
+	case models.Gauge:
+		ms.addGauge(metric)
+	case models.Counter:
+		ms.addCounter(metric)
+	default:
+		return ErrInvalidMetricType
+	}
+
+	return nil
 }
 
 func (ms *MemStorage) GetAllMetrics() []models.Metrics {
@@ -51,57 +92,34 @@ func (ms *MemStorage) GetMetric(metricName string) (models.Metrics, error) {
 	return metric, nil
 }
 
-func (ms *MemStorage) UpdateMetric(metricType string, name string, value string) error {
-	name = strings.TrimSpace(name)
-	value = strings.TrimSpace(value)
+func (ms *MemStorage) addGauge(metric models.Metrics) {
+	ms.metrics[metric.ID] = metric
+}
 
-	if name == "" {
+func (ms *MemStorage) addCounter(metricData models.Metrics) {
+	if metric, found := ms.metrics[metricData.ID]; found {
+		*metric.Delta += *metricData.Delta
+	} else {
+		ms.metrics[metricData.ID] = metricData
+	}
+}
+
+func (ms *MemStorage) validateMetric(metric models.Metrics) error {
+	if metric.ID == "" {
 		return ErrEmptyMetricName
 	}
 
-	if value == "" {
-		return ErrInvalidMetricValue
-	}
-
-	switch metricType {
+	switch metric.MType {
 	case models.Gauge:
-		return ms.addGauge(name, value)
+		if metric.Value == nil {
+			return ErrInvalidGaugeValue
+		}
 	case models.Counter:
-		return ms.addCounter(name, value)
+		if metric.Delta == nil {
+			return ErrInvalidCounterValue
+		}
 	default:
 		return ErrInvalidMetricType
-	}
-}
-
-func (ms *MemStorage) addGauge(name string, value string) error {
-	gauge, err := strconv.ParseFloat(value, 64)
-	if err != nil {
-		return ErrInvalidGaugeValue
-	}
-
-	ms.metrics[name] = models.Metrics{
-		ID:    name,
-		MType: models.Gauge,
-		Value: &gauge,
-	}
-
-	return nil
-}
-
-func (ms *MemStorage) addCounter(name string, value string) error {
-	counter, err := strconv.Atoi(value)
-	if err != nil {
-		return ErrInvalidCounterValue
-	}
-
-	if metric, found := ms.metrics[name]; found {
-		*metric.Delta += int64(counter)
-	} else {
-		ms.metrics[name] = models.Metrics{
-			ID:    name,
-			MType: models.Counter,
-			Delta: new(int64(counter)),
-		}
 	}
 
 	return nil

@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -10,20 +12,34 @@ import (
 	memStorage "github.com/bazueva/metrics/internal/storage"
 )
 
-type Handler struct {
-	storage memStorage.Storage
+type Storage interface {
+	GetMetric(name string) (models.Metrics, error)
+	GetAllMetrics() []models.Metrics
+	UpdateMetric(metric models.Metrics) error
+	CreateMetric(metricType string, name string, value string) (models.Metrics, error)
 }
 
-func NewHandler(memStorage memStorage.Storage) *Handler {
+type Handler struct {
+	storage Storage
+}
+
+func NewHandler(memStorage Storage) *Handler {
 	return &Handler{storage: memStorage}
 }
 
 func (h *Handler) UpdateHandler(w http.ResponseWriter, request *http.Request) {
-	err := h.storage.UpdateMetric(
+	metric, err := h.storage.CreateMetric(
 		request.PathValue("metricType"),
 		request.PathValue("metricName"),
 		request.PathValue("metricValue"),
 	)
+	if err != nil {
+		errorHandler(w, err)
+
+		return
+	}
+
+	err = h.storage.UpdateMetric(metric)
 	if err != nil {
 		errorHandler(w, err)
 
@@ -69,6 +85,61 @@ func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http
 	writer.WriteHeader(http.StatusOK)
 }
 
+func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.Request) {
+	body, err := io.ReadAll(request.Body)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+	}
+
+	defer request.Body.Close()
+
+	var metric models.Metrics
+	err = json.Unmarshal(body, &metric)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	err = h.storage.UpdateMetric(metric)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusBadRequest)
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+	decoder := json.NewDecoder(request.Body)
+
+	var metric models.Metrics
+	if err := decoder.Decode(&metric); err != nil {
+		writeJsonError(writer, http.StatusBadRequest, err)
+
+		return
+	}
+
+	resultMetric, err := h.storage.GetMetric(metric.ID)
+	if err != nil {
+		writeJsonError(writer, http.StatusNotFound, err)
+
+		return
+	}
+
+	resultMetricJson, err := json.Marshal(resultMetric)
+	if err != nil {
+		http.Error(writer, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
+	writer.Write(resultMetricJson)
+}
+
 func errorHandler(writer http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, memStorage.ErrEmptyMetricName),
@@ -77,4 +148,13 @@ func errorHandler(writer http.ResponseWriter, err error) {
 	default:
 		http.Error(writer, err.Error(), http.StatusBadRequest)
 	}
+}
+
+func writeJsonError(writer http.ResponseWriter, status int, err error) {
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(status)
+
+	json.NewEncoder(writer).Encode(map[string]string{
+		"error": err.Error(),
+	})
 }

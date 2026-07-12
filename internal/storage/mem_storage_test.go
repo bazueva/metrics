@@ -9,10 +9,8 @@ import (
 
 func TestMemStorage_UpdateMetric(t *testing.T) {
 	type args struct {
-		metricType  string
-		metricName  string
-		metricValue string
-		setup       func(storage *MemStorage)
+		metric models.Metrics
+		setup  func(storage *MemStorage)
 	}
 
 	type want struct {
@@ -38,19 +36,26 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 		{
 			name: "empty metric value",
 			args: args{
-				metricName: "test",
+				metric: models.Metrics{
+					ID:    "test",
+					MType: models.Gauge,
+				},
 			},
 			want: want{
-				err:     ErrInvalidMetricValue,
+				err:     ErrInvalidGaugeValue,
 				metrics: make(map[string]models.Metrics),
 			},
 		},
 		{
 			name: "undefined metric type",
 			args: args{
-				metricType:  "test1",
-				metricName:  "test",
-				metricValue: "value",
+				metric: models.Metrics{
+					ID:    "test",
+					MType: "test1",
+					Delta: nil,
+					Value: nil,
+					Hash:  "",
+				},
 			},
 			want: want{
 				err:     ErrInvalidMetricType,
@@ -60,9 +65,13 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 		{
 			name: "invalid gauge value",
 			args: args{
-				metricType:  models.Gauge,
-				metricName:  "test",
-				metricValue: "value",
+				metric: models.Metrics{
+					ID:    "test",
+					MType: models.Gauge,
+					Delta: nil,
+					Value: nil,
+					Hash:  "",
+				},
 			},
 			want: want{
 				err:     ErrInvalidGaugeValue,
@@ -72,9 +81,13 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 		{
 			name: "invalid counter value",
 			args: args{
-				metricType:  models.Counter,
-				metricName:  "test",
-				metricValue: "value",
+				metric: models.Metrics{
+					ID:    "test",
+					MType: models.Counter,
+					Delta: nil,
+					Value: nil,
+					Hash:  "",
+				},
 			},
 			want: want{
 				err:     ErrInvalidCounterValue,
@@ -84,9 +97,13 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 		{
 			name: "success add counter value",
 			args: args{
-				metricType:  models.Counter,
-				metricName:  "test",
-				metricValue: "1",
+				metric: models.Metrics{
+					ID:    "test",
+					MType: models.Counter,
+					Delta: new(int64(1)),
+					Value: nil,
+					Hash:  "",
+				},
 			},
 			want: want{
 				metrics: map[string]models.Metrics{
@@ -102,9 +119,12 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 		{
 			name: "success add gauge value",
 			args: args{
-				metricType:  models.Gauge,
-				metricName:  "test",
-				metricValue: "1",
+				metric: models.Metrics{
+					ID:    "test",
+					MType: models.Gauge,
+					Value: new(float64(1)),
+					Hash:  "",
+				},
 			},
 			want: want{
 				metrics: map[string]models.Metrics{
@@ -120,9 +140,12 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 		{
 			name: "gauge accumulation",
 			args: args{
-				metricType:  models.Gauge,
-				metricName:  "test",
-				metricValue: "2",
+				metric: models.Metrics{
+					ID:    "test",
+					MType: models.Gauge,
+					Delta: nil,
+					Value: new(float64(2)),
+				},
 				setup: func(storage *MemStorage) {
 					storage.metrics["test"] = models.Metrics{
 						ID:    "test",
@@ -145,9 +168,11 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 		{
 			name: "counter accumulation",
 			args: args{
-				metricType:  models.Counter,
-				metricName:  "count",
-				metricValue: "2",
+				metric: models.Metrics{
+					ID:    "count",
+					MType: models.Counter,
+					Delta: new(int64(2)),
+				},
 				setup: func(storage *MemStorage) {
 					storage.metrics["count"] = models.Metrics{
 						ID:    "count",
@@ -170,9 +195,12 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 		{
 			name: "with spaces",
 			args: args{
-				metricType:  models.Counter,
-				metricName:  " count ",
-				metricValue: " 2",
+				metric: models.Metrics{
+					ID:    " count ",
+					MType: models.Counter,
+					Delta: new(int64(2)),
+					Value: nil,
+				},
 			},
 			want: want{
 				metrics: map[string]models.Metrics{
@@ -194,7 +222,7 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				tt.args.setup(storage)
 			}
 
-			err := storage.UpdateMetric(tt.args.metricType, tt.args.metricName, tt.args.metricValue)
+			err := storage.UpdateMetric(tt.args.metric)
 
 			assert.Equal(t, tt.want.metrics, storage.metrics)
 
@@ -203,6 +231,62 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestMemStorage_CreateMetric(t *testing.T) {
+	type args struct {
+		metricType  string
+		metricName  string
+		metricValue string
+	}
+
+	type test struct {
+		name       string
+		args       args
+		wantResult models.Metrics
+		wantErr    error
+	}
+
+	tests := []test{
+		{
+			name:       "empty data",
+			args:       args{},
+			wantResult: models.Metrics{},
+			wantErr:    ErrInvalidMetricType,
+		},
+		{
+			name: "invalid gauge value",
+			args: args{
+				metricType:  models.Gauge,
+				metricName:  "test",
+				metricValue: "",
+			},
+			wantResult: models.Metrics{},
+			wantErr:    ErrInvalidGaugeValue,
+		},
+		{
+			name: "invalid counter value",
+			args: args{
+				metricType:  models.Counter,
+				metricName:  "test",
+				metricValue: "",
+			},
+			wantResult: models.Metrics{},
+			wantErr:    ErrInvalidCounterValue,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ms := &MemStorage{}
+			metric, err := ms.CreateMetric(tt.args.metricType, tt.args.metricName, tt.args.metricValue)
+			if err != nil || tt.wantErr != nil {
+				assert.ErrorIs(t, tt.wantErr, err)
+			}
+
+			assert.Equal(t, tt.wantResult, metric)
 		})
 	}
 }

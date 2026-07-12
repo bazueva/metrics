@@ -1,9 +1,11 @@
 package repository
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
+	models "github.com/bazueva/metrics/internal/model"
 	resty "github.com/go-resty/resty/v2"
 )
 
@@ -23,11 +25,17 @@ func NewRepository(addr string) (*repository, error) {
 	}, nil
 }
 
-func (r *repository) SendMetric(metricType string, metricName string, metricValue string) error {
-	updateUrl := fmt.Sprintf("%s/update/%s/%s/%s", r.addr, metricType, metricName, metricValue)
+func (r *repository) SendMetric(metric models.Metrics) error {
+	updateUrl := fmt.Sprintf("%s/update", r.addr)
+
+	metricJson, err := json.Marshal(metric)
+	if err != nil {
+		return err
+	}
 
 	response, err := r.client.R().
-		SetHeader("Content-Type", "text/plain").
+		SetHeader("Content-Type", "application/json").
+		SetBody(metricJson).
 		Post(updateUrl)
 	if err != nil {
 		return err
