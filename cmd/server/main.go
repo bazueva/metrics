@@ -30,7 +30,7 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))
-	router.Use(middleware.ServerGzip(cfg.logger))
+	router.Use(middleware.ServerUnpackGzip(cfg.logger))
 	router.Use(middleware.ServerResponseGzip())
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", httpHandler.UpdateHandler)
