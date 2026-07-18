@@ -77,6 +77,9 @@ func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Req
 }
 
 func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	writer.WriteHeader(http.StatusOK)
+
 	for _, metric := range h.storage.GetAllMetrics() {
 		switch metric.MType {
 		case models.Counter:
@@ -85,9 +88,6 @@ func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http
 			writer.Write([]byte(fmt.Sprintf("%s - %f \n", metric.ID, *metric.Value)))
 		}
 	}
-
-	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	writer.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.Request) {
