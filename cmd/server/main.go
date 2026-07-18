@@ -6,6 +6,7 @@ import (
 
 	"github.com/bazueva/metrics/internal/handler"
 	"github.com/bazueva/metrics/internal/logger"
+	"github.com/bazueva/metrics/internal/middleware"
 	"github.com/bazueva/metrics/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -29,6 +30,8 @@ func main() {
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))
+	router.Use(middleware.ServerGzip(cfg.logger))
+	router.Use(middleware.ServerResponseGzip())
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", httpHandler.UpdateHandler)
 	router.Get("/value/{metricType}/{metricName}", httpHandler.GetMetricHandler)

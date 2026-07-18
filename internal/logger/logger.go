@@ -29,6 +29,7 @@ func ServerLogger(logger Logger) func(next http.Handler) http.Handler {
 				zap.Duration("time", end),
 				zap.Int("statusCode", ww.Status()),
 				zap.Int("bytes", ww.BytesWritten()),
+				zap.Strings("Content-Encoding", r.Header.Values("Content-Encoding")),
 			)
 		}
 

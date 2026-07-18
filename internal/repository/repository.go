@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -33,9 +35,15 @@ func (r *repository) SendMetric(metric models.Metrics) error {
 		return err
 	}
 
+	compress, err := compressData(metricJson)
+	if err != nil {
+		return err
+	}
+
 	response, err := r.client.R().
 		SetHeader("Content-Type", "application/json").
-		SetBody(metricJson).
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(compress).
 		Post(updateUrl)
 	if err != nil {
 		return err
@@ -46,4 +54,22 @@ func (r *repository) SendMetric(metric models.Metrics) error {
 	}
 
 	return nil
+}
+
+func compressData(data []byte) ([]byte, error) {
+	var b bytes.Buffer
+
+	writer := gzip.NewWriter(&b)
+
+	_, err := writer.Write(data)
+	if err != nil {
+		return nil, err
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
 }
