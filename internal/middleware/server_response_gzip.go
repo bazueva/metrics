@@ -22,7 +22,7 @@ func ServerResponseGzip() func(next http.Handler) http.Handler {
 			contentType := r.Header.Get("Content-Type")
 
 			if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") ||
-				(contentType != "application/json" && contentType != "text/html") {
+				(contentType != "application/json" && contentType != "text/html" && contentType != "") {
 				next.ServeHTTP(w, r)
 
 				return
