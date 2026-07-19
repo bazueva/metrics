@@ -217,7 +217,7 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage := NewMemStorage()
+			storage := NewMemStorage(nil, false, nil, 10)
 			if tt.args.setup != nil {
 				tt.args.setup(storage)
 			}

@@ -5,7 +5,7 @@ import (
 
 	"github.com/bazueva/metrics/internal/agent"
 	"github.com/bazueva/metrics/internal/agent/collector"
-	"github.com/bazueva/metrics/internal/repository"
+	"github.com/bazueva/metrics/internal/repository/metric"
 )
 
 func main() {
@@ -14,7 +14,7 @@ func main() {
 		panic(err)
 	}
 
-	metricRepository, err := repository.NewRepository(fmt.Sprintf("http://%s", agentConfig.MetricServerAddr.String()))
+	metricRepository, err := metric.NewRepository(fmt.Sprintf("http://%s", agentConfig.MetricServerAddr.String()))
 	if err != nil {
 		panic(err)
 	}

@@ -25,6 +25,9 @@ func Test_readConfig(t *testing.T) {
 					Host: "localhost",
 					Port: 8080,
 				},
+				StoreInterval:       300,
+				FileStoragePath:     "metrics.log",
+				LoadMetricsFromFile: false,
 			},
 		},
 		{
@@ -37,6 +40,9 @@ func Test_readConfig(t *testing.T) {
 					Host: "test",
 					Port: 6789,
 				},
+				StoreInterval:       300,
+				FileStoragePath:     "metrics.log",
+				LoadMetricsFromFile: false,
 			},
 		},
 		{
@@ -46,21 +52,30 @@ func Test_readConfig(t *testing.T) {
 					Host: "local",
 					Port: 1111,
 				},
+				StoreInterval:       20,
+				FileStoragePath:     "f.log",
+				LoadMetricsFromFile: true,
 			},
-			args: []string{"cmd", "-a", "local:1111"},
+			args: []string{"cmd", "-a", "local:1111", "-i", "20", "-f", "f.log", "-r", "true"},
 		},
 		{
 			name: "with args and env",
 			envVars: map[string]string{
-				"ADDRESS": "test:8900",
+				"ADDRESS":           "test:8900",
+				"STORE_INTERVAL":    "56",
+				"FILE_STORAGE_PATH": "file_env.log",
+				"RESTORE":           "true",
 			},
 			want: config{
 				ServerAddr: configpkg.ServerAddr{
 					Host: "test",
 					Port: 8900,
 				},
+				StoreInterval:       56,
+				FileStoragePath:     "file_env.log",
+				LoadMetricsFromFile: true,
 			},
-			args: []string{"cmd", "-a", "local:1111"},
+			args: []string{"cmd", "-a", "local:1111", "-i", "20", "-f", "f.log", "-r", "false"},
 		},
 	}
 

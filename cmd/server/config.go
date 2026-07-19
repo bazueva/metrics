@@ -9,8 +9,16 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	storeIntervalDefault   = 300
+	fileStoragePathDefault = "metrics.log"
+)
+
 type config struct {
-	ServerAddr configpkg.ServerAddr `env:"ADDRESS"`
+	ServerAddr          configpkg.ServerAddr `env:"ADDRESS"`
+	StoreInterval       int                  `env:"STORE_INTERVAL"`
+	FileStoragePath     string               `env:"FILE_STORAGE_PATH"`
+	LoadMetricsFromFile bool                 `env:"RESTORE"`
 
 	logger *zap.Logger
 }
@@ -39,6 +47,9 @@ func readConfig() (config, error) {
 func parseFlags(config *config) error {
 	serverFlags := flag.NewFlagSet("", flag.ContinueOnError)
 	serverFlags.Var(&config.ServerAddr, "a", "address http server")
+	serverFlags.IntVar(&config.StoreInterval, "i", storeIntervalDefault, "store interval in seconds")
+	serverFlags.StringVar(&config.FileStoragePath, "f", fileStoragePathDefault, "Storage file path")
+	serverFlags.BoolVar(&config.LoadMetricsFromFile, "r", false, "Load metrics from file")
 
 	if len(os.Args) > 1 {
 		err := serverFlags.Parse(os.Args[1:])

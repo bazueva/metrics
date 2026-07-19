@@ -7,6 +7,7 @@ import (
 	"github.com/bazueva/metrics/internal/handler"
 	"github.com/bazueva/metrics/internal/logger"
 	"github.com/bazueva/metrics/internal/middleware"
+	"github.com/bazueva/metrics/internal/repository/file"
 	"github.com/bazueva/metrics/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -25,7 +26,19 @@ func main() {
 
 	defer cfg.logger.Sync()
 
-	memStorage := storage.NewMemStorage()
+	fileMetricRepository := file.NewRepository(cfg.FileStoragePath)
+	memStorage := storage.NewMemStorage(
+		fileMetricRepository,
+		cfg.LoadMetricsFromFile,
+		cfg.logger,
+		cfg.StoreInterval,
+	)
+	memStorage.RunSaver()
+
+	startServer(memStorage, cfg)
+}
+
+func startServer(memStorage *storage.MemStorage, cfg config) {
 	httpHandler := handler.NewHandler(memStorage, cfg.logger)
 
 	router := chi.NewRouter()
