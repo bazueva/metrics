@@ -1,11 +1,38 @@
 package storage
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	models "github.com/bazueva/metrics/internal/model"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
+
+type FileRepositoryMock struct {
+	err       error
+	data      []models.Metrics
+	callCount int
+}
+
+func (f *FileRepositoryMock) Save(data []models.Metrics) error {
+	f.data = data
+	f.callCount++
+	return f.err
+}
+
+func (f *FileRepositoryMock) LoadFromFile() ([]models.Metrics, error) {
+	return f.data, f.err
+}
+
+type LoggerMock struct {
+	callCount int
+}
+
+func (l *LoggerMock) Error(msg string, fields ...zap.Field) {
+	l.callCount++
+}
 
 func TestMemStorage_UpdateMetric(t *testing.T) {
 	type args struct {
@@ -287,6 +314,97 @@ func TestMemStorage_CreateMetric(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.wantResult, metric)
+		})
+	}
+}
+
+func TestMemStorage_RunSaver(t *testing.T) {
+	t.Run("storeInterval = 0", func(t *testing.T) {
+		fileRepo := &FileRepositoryMock{}
+		logger := &LoggerMock{}
+
+		storage := NewMemStorage(fileRepo, false, logger, 0)
+		go storage.RunSaver()
+
+		time.Sleep(4 * time.Second)
+		assert.Equal(t, 0, fileRepo.callCount)
+	})
+
+	t.Run("storeInterval > 0", func(t *testing.T) {
+		fileRepo := &FileRepositoryMock{}
+		logger := &LoggerMock{}
+
+		storage := NewMemStorage(fileRepo, false, logger, 1)
+		go storage.RunSaver()
+
+		time.Sleep(4 * time.Second)
+		assert.Greater(t, fileRepo.callCount, 0)
+	})
+}
+
+func TestMemStorage_Save(t *testing.T) {
+	type test struct {
+		name     string
+		metrics  map[string]models.Metrics
+		fileRepo *FileRepositoryMock
+		err      string
+	}
+
+	tests := []test{
+		{
+			name: "error repo",
+			metrics: map[string]models.Metrics{
+				"test": {
+					ID:    "test",
+					MType: models.Gauge,
+					Value: new(float64(1)),
+				},
+				"test2": {
+					ID:    "test2",
+					MType: models.Counter,
+					Delta: new(int64(2)),
+				},
+			},
+			fileRepo: &FileRepositoryMock{err: fmt.Errorf("Ошибка")},
+			err:      "Ошибка",
+		},
+		{
+			name: "success",
+			metrics: map[string]models.Metrics{
+				"test": {
+					ID:    "test",
+					MType: models.Gauge,
+					Value: new(float64(1)),
+				},
+				"test2": {
+					ID:    "test2",
+					MType: models.Counter,
+					Delta: new(int64(2)),
+				},
+			},
+			fileRepo: &FileRepositoryMock{},
+			err:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			storage := &MemStorage{
+				metrics:        tt.metrics,
+				fileRepository: tt.fileRepo,
+			}
+
+			err := storage.Save()
+			if err != nil || tt.err != "" {
+				assert.Equal(t, tt.err, err.Error())
+			}
+
+			metricSlice := make([]models.Metrics, 0, len(tt.metrics))
+			for _, metric := range tt.metrics {
+				metricSlice = append(metricSlice, metric)
+			}
+
+			assert.ElementsMatch(t, metricSlice, tt.fileRepo.data)
 		})
 	}
 }
