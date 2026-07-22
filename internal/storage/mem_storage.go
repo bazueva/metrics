@@ -5,15 +5,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	models "github.com/bazueva/metrics/internal/model"
+	"go.uber.org/zap"
 )
-
-type Storage interface {
-	UpdateMetric(metricType string, name string, value string) error
-	GetMetric(name string) (models.Metrics, error)
-	GetAllMetrics() []models.Metrics
-}
 
 var (
 	ErrInvalidMetricType   = errors.New("invalid metric type")
@@ -24,11 +21,73 @@ var (
 	ErrNotFoundMetric      = errors.New("not found")
 )
 
+type Logger interface {
+	Error(msg string, fields ...zap.Field)
+}
+
+type FileRepository interface {
+	Save(data []models.Metrics) error
+	LoadFromFile() ([]models.Metrics, error)
+}
+
 type MemStorage struct {
-	metrics map[string]models.Metrics
+	metrics        map[string]models.Metrics
+	fileRepository FileRepository
+	logger         Logger
+	storeInterval  int
+	mu             sync.RWMutex
+}
+
+func (ms *MemStorage) CreateMetric(metricType string, name string, value string) (models.Metrics, error) {
+	switch metricType {
+	case models.Gauge:
+		gauge, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return models.Metrics{}, ErrInvalidGaugeValue
+		}
+
+		return models.Metrics{
+			ID:    name,
+			MType: metricType,
+			Value: &gauge,
+		}, nil
+	case models.Counter:
+		counter, err := strconv.Atoi(value)
+		if err != nil {
+			return models.Metrics{}, ErrInvalidCounterValue
+		}
+
+		return models.Metrics{
+			ID:    name,
+			MType: metricType,
+			Delta: new(int64(counter)),
+		}, nil
+	default:
+		return models.Metrics{}, ErrInvalidMetricType
+	}
+}
+
+func (ms *MemStorage) UpdateMetric(metric models.Metrics) error {
+	metric.ID = strings.TrimSpace(metric.ID)
+	if err := ms.validateMetric(metric); err != nil {
+		return err
+	}
+
+	switch metric.MType {
+	case models.Gauge:
+		ms.addGauge(metric)
+	case models.Counter:
+		ms.addCounter(metric)
+	default:
+		return ErrInvalidMetricType
+	}
+
+	return nil
 }
 
 func (ms *MemStorage) GetAllMetrics() []models.Metrics {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
 	result := make([]models.Metrics, 0, len(ms.metrics))
 
 	for _, metric := range ms.metrics {
@@ -43,6 +102,8 @@ func (ms *MemStorage) GetAllMetrics() []models.Metrics {
 }
 
 func (ms *MemStorage) GetMetric(metricName string) (models.Metrics, error) {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
 	metric, found := ms.metrics[metricName]
 	if !found {
 		return models.Metrics{}, ErrNotFoundMetric
@@ -51,64 +112,124 @@ func (ms *MemStorage) GetMetric(metricName string) (models.Metrics, error) {
 	return metric, nil
 }
 
-func (ms *MemStorage) UpdateMetric(metricType string, name string, value string) error {
-	name = strings.TrimSpace(name)
-	value = strings.TrimSpace(value)
+func (ms *MemStorage) addGauge(metric models.Metrics) {
+	ms.mu.Lock()
+	ms.metrics[metric.ID] = metric
+	ms.mu.Unlock()
 
-	if name == "" {
+	if ms.storeInterval == 0 {
+		err := ms.Save()
+		if err != nil {
+			ms.logger.Error(err.Error())
+		}
+	}
+}
+
+func (ms *MemStorage) addCounter(metricData models.Metrics) {
+	ms.mu.Lock()
+
+	if metric, found := ms.metrics[metricData.ID]; found {
+		*metric.Delta += *metricData.Delta
+	} else {
+		ms.metrics[metricData.ID] = metricData
+	}
+
+	ms.mu.Unlock()
+
+	if ms.storeInterval == 0 {
+		err := ms.Save()
+		if err != nil {
+			ms.logger.Error(err.Error())
+		}
+	}
+}
+
+func (ms *MemStorage) validateMetric(metric models.Metrics) error {
+	if metric.ID == "" {
 		return ErrEmptyMetricName
 	}
 
-	if value == "" {
-		return ErrInvalidMetricValue
-	}
-
-	switch metricType {
+	switch metric.MType {
 	case models.Gauge:
-		return ms.addGauge(name, value)
+		if metric.Value == nil {
+			return ErrInvalidGaugeValue
+		}
 	case models.Counter:
-		return ms.addCounter(name, value)
+		if metric.Delta == nil {
+			return ErrInvalidCounterValue
+		}
 	default:
 		return ErrInvalidMetricType
 	}
+
+	return nil
 }
 
-func (ms *MemStorage) addGauge(name string, value string) error {
-	gauge, err := strconv.ParseFloat(value, 64)
+func (ms *MemStorage) Load() error {
+	data, err := ms.fileRepository.LoadFromFile()
 	if err != nil {
-		return ErrInvalidGaugeValue
+		return err
 	}
 
-	ms.metrics[name] = models.Metrics{
-		ID:    name,
-		MType: models.Gauge,
-		Value: &gauge,
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	ms.metrics = make(map[string]models.Metrics)
+	for _, metric := range data {
+		ms.metrics[metric.ID] = metric
 	}
 
 	return nil
 }
 
-func (ms *MemStorage) addCounter(name string, value string) error {
-	counter, err := strconv.Atoi(value)
-	if err != nil {
-		return ErrInvalidCounterValue
+func (ms *MemStorage) Save() error {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+	data := make([]models.Metrics, 0, len(ms.metrics))
+
+	for _, metric := range ms.metrics {
+		data = append(data, metric)
 	}
 
-	if metric, found := ms.metrics[name]; found {
-		*metric.Delta += int64(counter)
-	} else {
-		ms.metrics[name] = models.Metrics{
-			ID:    name,
-			MType: models.Counter,
-			Delta: new(int64(counter)),
+	return ms.fileRepository.Save(data)
+}
+
+func (ms *MemStorage) RunSaver() {
+	if ms.storeInterval == 0 {
+		return
+	}
+
+	go func() {
+		for {
+			time.Sleep(time.Duration(ms.storeInterval) * time.Second)
+
+			err := ms.Save()
+			if err != nil {
+				ms.logger.Error("Ошибка сохранения метрик", zap.Error(err))
+			}
+		}
+	}()
+}
+
+func NewMemStorage(
+	fileRepository FileRepository,
+	loadMetrics bool,
+	logger Logger,
+	storeInterval int,
+) *MemStorage {
+	storage := &MemStorage{
+		metrics:        make(map[string]models.Metrics),
+		fileRepository: fileRepository,
+		storeInterval:  storeInterval,
+		logger:         logger,
+	}
+
+	if loadMetrics {
+		err := storage.Load()
+		if err != nil {
+			logger.Error("Ошибка загрузки метрик", zap.Error(err))
 		}
 	}
 
-	return nil
-}
-
-func NewMemStorage() *MemStorage {
-	return &MemStorage{
-		metrics: make(map[string]models.Metrics),
-	}
+	return storage
 }

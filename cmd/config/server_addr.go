@@ -11,6 +11,10 @@ type ServerAddr struct {
 	Port int
 }
 
+func (s *ServerAddr) UnmarshalText(text []byte) error {
+	return s.Set(string(text))
+}
+
 func (s *ServerAddr) String() string {
 	return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }
