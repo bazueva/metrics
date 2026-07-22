@@ -14,7 +14,6 @@ func TestServerResponseGzip(t *testing.T) {
 	type test struct {
 		name           string
 		body           []byte
-		contentType    string
 		compress       bool
 		wantBody       string
 		acceptEncoding string
@@ -39,17 +38,8 @@ func TestServerResponseGzip(t *testing.T) {
 			compress:       true,
 			body:           []byte(`{"test": 1}`),
 			wantBody:       `{"test": 1}`,
-			contentType:    "application/json",
 			acceptEncoding: "gzip",
 		},
-		//{
-		//	name:           "with gzip and text ",
-		//	compress:       false,
-		//	body:           []byte(`{"test": 1}`),
-		//	wantBody:       `{"test": 1}`,
-		//	contentType:    "text/plain",
-		//	acceptEncoding: "gzip",
-		//},
 	}
 
 	for _, tt := range tests {
@@ -62,10 +52,6 @@ func TestServerResponseGzip(t *testing.T) {
 
 			if tt.acceptEncoding != "" {
 				request.Header.Set("Accept-Encoding", tt.acceptEncoding)
-			}
-
-			if tt.contentType != "" {
-				request.Header.Set("Content-Type", tt.contentType)
 			}
 
 			middleware := ServerResponseGzip()
