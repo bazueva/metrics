@@ -16,36 +16,51 @@ import (
 type LoggerMock struct {
 }
 
-func (l *LoggerMock) Info(msg string, fields ...zap.Field) {
+func (l *LoggerMock) Error(msg string, fields ...zap.Field) {
 	fmt.Println(msg)
 }
 
 func TestServerGzip(t *testing.T) {
 	type test struct {
-		name     string
-		body     []byte
-		compress bool
-		wantBody string
+		name       string
+		body       []byte
+		compress   bool
+		addHeader  bool
+		wantBody   string
+		statusCode int
 	}
 
 	tests := []test{
 		{
-			name:     "without gzip",
-			body:     []byte(`{"test": 1}`),
-			compress: false,
-			wantBody: `{"test": 1}`,
+			name:       "without gzip",
+			body:       []byte(`{"test": 1}`),
+			compress:   false,
+			wantBody:   `{"test": 1}`,
+			statusCode: http.StatusOK,
 		},
 		{
-			name:     "with gzip",
-			compress: true,
-			body:     []byte(`{"test": 1}`),
-			wantBody: `{"test": 1}`,
+			name:       "with gzip",
+			compress:   true,
+			addHeader:  true,
+			body:       []byte(`{"test": 1}`),
+			wantBody:   `{"test": 1}`,
+			statusCode: http.StatusOK,
 		},
 		{
-			name:     "empty body",
-			compress: true,
-			body:     nil,
-			wantBody: ``,
+			name:       "empty body",
+			compress:   true,
+			body:       nil,
+			wantBody:   ``,
+			statusCode: http.StatusOK,
+			addHeader:  true,
+		},
+		{
+			name:       "invalid gzip body",
+			addHeader:  true,
+			compress:   false,
+			body:       []byte(`{"test": 1}`),
+			wantBody:   `{"test": 1}`,
+			statusCode: http.StatusBadRequest,
 		},
 	}
 
@@ -71,7 +86,7 @@ func TestServerGzip(t *testing.T) {
 				bodyReader,
 			)
 
-			if tt.compress {
+			if tt.addHeader {
 				request.Header.Set("Content-Encoding", "gzip")
 			}
 
@@ -91,6 +106,8 @@ func TestServerGzip(t *testing.T) {
 			}))
 
 			handler.ServeHTTP(responseWriter, request)
+
+			assert.Equal(t, tt.statusCode, responseWriter.Code)
 		})
 	}
 }

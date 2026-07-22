@@ -11,7 +11,7 @@ import (
 )
 
 type Logger interface {
-	Info(msg string, fields ...zap.Field)
+	Error(msg string, fields ...zap.Field)
 }
 
 func ServerUnpackGzip(logger Logger) func(next http.Handler) http.Handler {
@@ -25,7 +25,11 @@ func ServerUnpackGzip(logger Logger) func(next http.Handler) http.Handler {
 
 			reader, err := gzip.NewReader(r.Body)
 			if err != nil {
-				logger.Info("server compress middleware", zap.Error(err))
+				logger.Error("error server compress middleware", zap.Error(err))
+
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte("error server compress middleware"))
+
 				return
 			}
 			defer r.Body.Close()
@@ -33,7 +37,11 @@ func ServerUnpackGzip(logger Logger) func(next http.Handler) http.Handler {
 
 			body, err := io.ReadAll(reader)
 			if err != nil {
-				logger.Info("server compress middleware", zap.Error(err))
+				logger.Error("error server compress middleware", zap.Error(err))
+
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte("error server compress middleware"))
+
 				return
 			}
 
