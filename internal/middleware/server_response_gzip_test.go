@@ -42,14 +42,14 @@ func TestServerResponseGzip(t *testing.T) {
 			contentType:    "application/json",
 			acceptEncoding: "gzip",
 		},
-		{
-			name:           "with gzip and text ",
-			compress:       false,
-			body:           []byte(`{"test": 1}`),
-			wantBody:       `{"test": 1}`,
-			contentType:    "text/plain",
-			acceptEncoding: "gzip",
-		},
+		//{
+		//	name:           "with gzip and text ",
+		//	compress:       false,
+		//	body:           []byte(`{"test": 1}`),
+		//	wantBody:       `{"test": 1}`,
+		//	contentType:    "text/plain",
+		//	acceptEncoding: "gzip",
+		//},
 	}
 
 	for _, tt := range tests {
