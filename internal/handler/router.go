@@ -20,15 +20,21 @@ type Storage interface {
 	CreateMetric(metricType string, name string, value string) (models.Metrics, error)
 }
 
+type Database interface {
+	Ping() error
+}
+
 type Handler struct {
 	storage Storage
 	logger  *zap.Logger
+	db      Database
 }
 
-func NewHandler(memStorage Storage, logger *zap.Logger) *Handler {
+func NewHandler(memStorage Storage, logger *zap.Logger, db Database) *Handler {
 	return &Handler{
 		storage: memStorage,
 		logger:  logger,
+		db:      db,
 	}
 }
 
@@ -169,4 +175,17 @@ func (h *Handler) writeJsonError(writer http.ResponseWriter, status int, err err
 	json.NewEncoder(writer).Encode(map[string]string{
 		"error": err.Error(),
 	})
+}
+
+func (h *Handler) PingHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
+	if err := h.db.Ping(); err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte("Ошибка соединения с БД"))
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
 }
