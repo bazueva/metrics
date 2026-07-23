@@ -61,6 +61,7 @@ func (r *Repository) Save(ctx context.Context, data []models.Metrics) error {
 }
 
 func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
+	return nil, nil
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, loadTimeout)
 	defer cancel()
 
