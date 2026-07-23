@@ -37,12 +37,12 @@ func main() {
 	defer db.Close()
 
 	var memStorageRepository storage.Repository
-	if err = db.Ping(); err != nil {
-		if cfg.LoadMetricsFromFile {
+	if cfg.LoadMetricsFromFile {
+		if err = db.Ping(); err != nil {
 			memStorageRepository = file.NewRepository(cfg.FileStoragePath)
+		} else {
+			memStorageRepository = metrics.NewRepository(db)
 		}
-	} else {
-		memStorageRepository = metrics.NewRepository(db)
 	}
 
 	memStorage := storage.NewMemStorage(
