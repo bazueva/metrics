@@ -253,9 +253,9 @@ func TestHandler_GetAllMetricsHandler(t *testing.T) {
 			}(),
 			want: want{
 				code: http.StatusOK,
-				body: "test - 1000 \n" +
-					"test 2 - 1.220000 \n" +
-					"test 3 - 9.622000 \n",
+				body: "test - 1000 <br>" +
+					"test 2 - 1.220000 <br>" +
+					"test 3 - 9.622000 <br>",
 			},
 		},
 	}
