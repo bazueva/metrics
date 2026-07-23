@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -16,13 +17,13 @@ type FileRepositoryMock struct {
 	callCount int
 }
 
-func (f *FileRepositoryMock) Save(data []models.Metrics) error {
+func (f *FileRepositoryMock) Save(ctx context.Context, data []models.Metrics) error {
 	f.data = data
 	f.callCount++
 	return f.err
 }
 
-func (f *FileRepositoryMock) LoadFromFile() ([]models.Metrics, error) {
+func (f *FileRepositoryMock) Load(ctx context.Context) ([]models.Metrics, error) {
 	return f.data, f.err
 }
 
@@ -390,8 +391,8 @@ func TestMemStorage_Save(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := &MemStorage{
-				metrics:        tt.metrics,
-				fileRepository: tt.fileRepo,
+				metrics:    tt.metrics,
+				repository: tt.fileRepo,
 			}
 
 			err := storage.Save()

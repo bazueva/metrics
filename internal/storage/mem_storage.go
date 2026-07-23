@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"errors"
 	"sort"
 	"strconv"
@@ -25,17 +26,17 @@ type Logger interface {
 	Error(msg string, fields ...zap.Field)
 }
 
-type FileRepository interface {
-	Save(data []models.Metrics) error
-	LoadFromFile() ([]models.Metrics, error)
+type Repository interface {
+	Save(ctx context.Context, data []models.Metrics) error
+	Load(ctx context.Context) ([]models.Metrics, error)
 }
 
 type MemStorage struct {
-	metrics        map[string]models.Metrics
-	fileRepository FileRepository
-	logger         Logger
-	storeInterval  int
-	mu             sync.RWMutex
+	metrics       map[string]models.Metrics
+	repository    Repository
+	logger        Logger
+	storeInterval int
+	mu            sync.RWMutex
 }
 
 func (ms *MemStorage) CreateMetric(metricType string, name string, value string) (models.Metrics, error) {
@@ -166,7 +167,11 @@ func (ms *MemStorage) validateMetric(metric models.Metrics) error {
 }
 
 func (ms *MemStorage) Load() error {
-	data, err := ms.fileRepository.LoadFromFile()
+	if ms.repository == nil {
+		return nil
+	}
+
+	data, err := ms.repository.Load(context.Background())
 	if err != nil {
 		return err
 	}
@@ -183,6 +188,10 @@ func (ms *MemStorage) Load() error {
 }
 
 func (ms *MemStorage) Save() error {
+	if ms.repository == nil {
+		return nil
+	}
+
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
 	data := make([]models.Metrics, 0, len(ms.metrics))
@@ -191,7 +200,7 @@ func (ms *MemStorage) Save() error {
 		data = append(data, metric)
 	}
 
-	return ms.fileRepository.Save(data)
+	return ms.repository.Save(context.Background(), data)
 }
 
 func (ms *MemStorage) RunSaver() {
@@ -211,17 +220,12 @@ func (ms *MemStorage) RunSaver() {
 	}()
 }
 
-func NewMemStorage(
-	fileRepository FileRepository,
-	loadMetrics bool,
-	logger Logger,
-	storeInterval int,
-) *MemStorage {
+func NewMemStorage(repository Repository, loadMetrics bool, logger Logger, storeInterval int) *MemStorage {
 	storage := &MemStorage{
-		metrics:        make(map[string]models.Metrics),
-		fileRepository: fileRepository,
-		storeInterval:  storeInterval,
-		logger:         logger,
+		metrics:       make(map[string]models.Metrics),
+		repository:    repository,
+		storeInterval: storeInterval,
+		logger:        logger,
 	}
 
 	if loadMetrics {

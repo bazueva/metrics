@@ -20,15 +20,21 @@ type Storage interface {
 	CreateMetric(metricType string, name string, value string) (models.Metrics, error)
 }
 
+type Database interface {
+	Ping() error
+}
+
 type Handler struct {
 	storage Storage
 	logger  *zap.Logger
+	db      Database
 }
 
-func NewHandler(memStorage Storage, logger *zap.Logger) *Handler {
+func NewHandler(memStorage Storage, logger *zap.Logger, db Database) *Handler {
 	return &Handler{
 		storage: memStorage,
 		logger:  logger,
+		db:      db,
 	}
 }
 
@@ -78,16 +84,17 @@ func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Req
 
 func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	writer.WriteHeader(http.StatusOK)
 
 	for _, metric := range h.storage.GetAllMetrics() {
 		switch metric.MType {
 		case models.Counter:
-			writer.Write([]byte(fmt.Sprintf("%s - %d \n", metric.ID, *metric.Delta)))
+			writer.Write([]byte(fmt.Sprintf("%s - %d <br>", metric.ID, *metric.Delta)))
 		case models.Gauge:
-			writer.Write([]byte(fmt.Sprintf("%s - %f \n", metric.ID, *metric.Value)))
+			writer.Write([]byte(fmt.Sprintf("%s - %f <br>", metric.ID, *metric.Value)))
 		}
 	}
+
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.Request) {
@@ -169,4 +176,17 @@ func (h *Handler) writeJsonError(writer http.ResponseWriter, status int, err err
 	json.NewEncoder(writer).Encode(map[string]string{
 		"error": err.Error(),
 	})
+}
+
+func (h *Handler) PingHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
+	if err := h.db.Ping(); err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte("Ошибка соединения с БД"))
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
 }
