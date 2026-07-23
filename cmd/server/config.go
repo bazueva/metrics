@@ -19,6 +19,7 @@ type config struct {
 	StoreInterval       int                  `env:"STORE_INTERVAL"`
 	FileStoragePath     string               `env:"FILE_STORAGE_PATH"`
 	LoadMetricsFromFile bool                 `env:"RESTORE"`
+	DatabaseDSN         string               `env:"DATABASE_DSN"`
 
 	logger *zap.Logger
 }
@@ -50,6 +51,7 @@ func parseFlags(config *config) error {
 	serverFlags.IntVar(&config.StoreInterval, "i", storeIntervalDefault, "store interval in seconds")
 	serverFlags.StringVar(&config.FileStoragePath, "f", fileStoragePathDefault, "Storage file path")
 	serverFlags.BoolVar(&config.LoadMetricsFromFile, "r", false, "Load metrics from file")
+	serverFlags.StringVar(&config.DatabaseDSN, "d", "", "Database DSN")
 
 	if len(os.Args) > 1 {
 		err := serverFlags.Parse(os.Args[1:])
