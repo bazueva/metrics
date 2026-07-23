@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/bazueva/metrics/internal/repository/db/metrics"
+	"github.com/bazueva/metrics/internal/repository/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/bazueva/metrics/internal/handler"
 	"github.com/bazueva/metrics/internal/logger"
 	"github.com/bazueva/metrics/internal/middleware"
-	"github.com/bazueva/metrics/internal/repository/file"
 	"github.com/bazueva/metrics/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -35,9 +36,17 @@ func main() {
 	}
 	defer db.Close()
 
-	fileMetricRepository := file.NewRepository(cfg.FileStoragePath)
+	var memStorageRepository storage.Repository
+	if err = db.Ping(); err != nil {
+		if cfg.LoadMetricsFromFile {
+			memStorageRepository = file.NewRepository(cfg.FileStoragePath)
+		}
+	} else {
+		memStorageRepository = metrics.NewRepository(db)
+	}
+
 	memStorage := storage.NewMemStorage(
-		fileMetricRepository,
+		memStorageRepository,
 		cfg.LoadMetricsFromFile,
 		cfg.logger,
 		cfg.StoreInterval,

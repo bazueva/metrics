@@ -84,16 +84,17 @@ func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Req
 
 func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	writer.WriteHeader(http.StatusOK)
 
 	for _, metric := range h.storage.GetAllMetrics() {
 		switch metric.MType {
 		case models.Counter:
-			writer.Write([]byte(fmt.Sprintf("%s - %d \n", metric.ID, *metric.Delta)))
+			writer.Write([]byte(fmt.Sprintf("%s - %d <br>", metric.ID, *metric.Delta)))
 		case models.Gauge:
-			writer.Write([]byte(fmt.Sprintf("%s - %f \n", metric.ID, *metric.Value)))
+			writer.Write([]byte(fmt.Sprintf("%s - %f <br>", metric.ID, *metric.Value)))
 		}
 	}
+
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.Request) {

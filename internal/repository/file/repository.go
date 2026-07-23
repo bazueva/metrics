@@ -1,6 +1,7 @@
 package file
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,7 +13,7 @@ type Repository struct {
 	filename string
 }
 
-func (r *Repository) Save(data []models.Metrics) error {
+func (r *Repository) Save(ctx context.Context, data []models.Metrics) error {
 	if len(data) == 0 {
 		return nil
 	}
@@ -30,7 +31,7 @@ func (r *Repository) Save(data []models.Metrics) error {
 	return nil
 }
 
-func (r *Repository) LoadFromFile() ([]models.Metrics, error) {
+func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
 	data, err := os.ReadFile(r.filename)
 	if err != nil {
 		return nil, fmt.Errorf("Ошибка чтения файла - %w", err)
