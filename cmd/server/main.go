@@ -3,8 +3,10 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
 
+	dbpkg "github.com/bazueva/metrics/db"
 	"github.com/bazueva/metrics/internal/repository/db/metrics"
 	"github.com/bazueva/metrics/internal/repository/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -35,6 +37,12 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
+
+	if cfg.DatabaseDSN != "" {
+		if err := dbpkg.RunMigrations(db); err != nil {
+			log.Fatal("Migration failed:", err)
+		}
+	}
 
 	var memStorageRepository storage.Repository
 	if cfg.LoadMetricsFromFile {
