@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultTimeout = 5 * time.Second
+	defaultTimeout = 3 * time.Second
 	loadTimeout    = 1 * time.Second
 )
 
@@ -68,11 +68,11 @@ func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
 		ctxWithTimeout,
 		`SELECT metric_id, type, delta, value FROM metrics`,
 	)
-	defer rows.Close()
-
 	if err != nil {
 		return nil, err
 	}
+
+	defer rows.Close()
 
 	result := make([]models.Metrics, 0)
 	for rows.Next() {

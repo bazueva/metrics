@@ -7,3 +7,7 @@ packages:
   github.com/bazueva/metrics/internal/handler:
     config:
       all: true
+  github.com/bazueva/metrics/internal/repository/db:
+    config:
+      all: true
+      recursive: true
