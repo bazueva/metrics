@@ -495,3 +495,93 @@ func TestHandler_PingHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestHandler_UpdatesMetricHandler(t *testing.T) {
+	type want struct {
+		code int
+		body string
+	}
+
+	type test struct {
+		name       string
+		request    *http.Request
+		memStorage Storage
+		want       want
+	}
+
+	tests := []test{
+		{
+			name:       "invalid json",
+			request:    httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`"test"`))),
+			memStorage: nil,
+			want: want{
+				code: http.StatusBadRequest,
+				body: `{"error":"json: cannot unmarshal string into Go value of type []models.Metrics"}`,
+			},
+		},
+		{
+			name:    "error storage updates metric",
+			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`[{"test":"1"}]`))),
+			memStorage: func() Storage {
+				mock := new(MockStorage)
+				mock.err = fmt.Errorf("ошибка")
+
+				return mock
+			}(),
+			want: want{
+				code: http.StatusBadRequest,
+				body: `{"error":"ошибка"}`,
+			},
+		},
+		{
+			name:    "empty metrics",
+			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`[]`))),
+			memStorage: func() Storage {
+				mock := new(MockStorage)
+
+				return mock
+			}(),
+			want: want{
+				code: http.StatusBadRequest,
+				body: `{"error":"Не переданы метрики"}`,
+			},
+		},
+		{
+			name:    "success",
+			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`[{"test":"1"}]`))),
+			memStorage: func() Storage {
+				mock := new(MockStorage)
+
+				return mock
+			}(),
+			want: want{
+				code: http.StatusOK,
+				body: ``,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger, _ := zap.NewDevelopment()
+
+			handler := NewHandler(tt.memStorage, logger, nil)
+			recorder := httptest.NewRecorder()
+
+			handler.UpdatesMetricHandler(recorder, tt.request)
+
+			result := recorder.Result()
+			defer result.Body.Close()
+
+			body, err := io.ReadAll(result.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want.code, result.StatusCode)
+
+			if tt.want.body != "" || string(body) != "" {
+				assert.JSONEq(t, tt.want.body, string(body))
+			}
+
+		})
+	}
+}
