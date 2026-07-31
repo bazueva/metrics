@@ -250,7 +250,7 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				tt.args.setup(storage)
 			}
 
-			err := storage.UpdateMetric(tt.args.metric)
+			err := storage.UpdateMetric(tt.args.metric, true)
 
 			assert.Equal(t, tt.want.metrics, storage.metrics)
 

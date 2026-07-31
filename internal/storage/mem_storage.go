@@ -39,6 +39,22 @@ type MemStorage struct {
 	mu            sync.RWMutex
 }
 
+func (ms *MemStorage) UpdatesMetrics(metrics []models.Metrics) error {
+	for _, metric := range metrics {
+		if err := ms.validateMetric(metric); err != nil {
+			return err
+		}
+	}
+
+	for _, metric := range metrics {
+		if err := ms.UpdateMetric(metric, false); err != nil {
+			return err
+		}
+	}
+
+	return ms.Save()
+}
+
 func (ms *MemStorage) CreateMetric(metricType string, name string, value string) (models.Metrics, error) {
 	switch metricType {
 	case models.Gauge:
@@ -68,7 +84,7 @@ func (ms *MemStorage) CreateMetric(metricType string, name string, value string)
 	}
 }
 
-func (ms *MemStorage) UpdateMetric(metric models.Metrics) error {
+func (ms *MemStorage) UpdateMetric(metric models.Metrics, needSave bool) error {
 	metric.ID = strings.TrimSpace(metric.ID)
 	if err := ms.validateMetric(metric); err != nil {
 		return err
@@ -81,6 +97,13 @@ func (ms *MemStorage) UpdateMetric(metric models.Metrics) error {
 		ms.addCounter(metric)
 	default:
 		return ErrInvalidMetricType
+	}
+
+	if needSave && ms.storeInterval == 0 {
+		err := ms.Save()
+		if err != nil {
+			ms.logger.Error(err.Error())
+		}
 	}
 
 	return nil
@@ -117,13 +140,6 @@ func (ms *MemStorage) addGauge(metric models.Metrics) {
 	ms.mu.Lock()
 	ms.metrics[metric.ID] = metric
 	ms.mu.Unlock()
-
-	if ms.storeInterval == 0 {
-		err := ms.Save()
-		if err != nil {
-			ms.logger.Error(err.Error())
-		}
-	}
 }
 
 func (ms *MemStorage) addCounter(metricData models.Metrics) {
@@ -136,13 +152,6 @@ func (ms *MemStorage) addCounter(metricData models.Metrics) {
 	}
 
 	ms.mu.Unlock()
-
-	if ms.storeInterval == 0 {
-		err := ms.Save()
-		if err != nil {
-			ms.logger.Error(err.Error())
-		}
-	}
 }
 
 func (ms *MemStorage) validateMetric(metric models.Metrics) error {

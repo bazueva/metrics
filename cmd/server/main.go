@@ -77,6 +77,7 @@ func startServer(cfg config, memStorage *storage.MemStorage, db *sql.DB) {
 	router.Get("/", httpHandler.GetAllMetricsHandler)
 	router.Post("/update", httpHandler.UpdateMetricHandler)
 	router.Post("/update/", httpHandler.UpdateMetricHandler)
+	router.Post("/updates/", httpHandler.UpdatesMetricHandler)
 	router.Post("/value/", httpHandler.ValueMetricHandler)
 	router.Get("/ping", httpHandler.PingHandler)
 

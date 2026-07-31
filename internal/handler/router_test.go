@@ -25,7 +25,11 @@ type MockStorage struct {
 	createdMetricErr error
 }
 
-func (m *MockStorage) UpdateMetric(metric models.Metrics) error {
+func (m *MockStorage) UpdatesMetrics(metrics []models.Metrics) error {
+	return m.err
+}
+
+func (m *MockStorage) UpdateMetric(metric models.Metrics, needSave bool) error {
 	return m.err
 }
 

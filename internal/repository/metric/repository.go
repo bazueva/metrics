@@ -56,6 +56,35 @@ func (r *repository) SendMetric(metric models.Metrics) error {
 	return nil
 }
 
+func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
+	updateUrl := fmt.Sprintf("%s/updates/", r.addr)
+
+	metricsJson, err := json.Marshal(metrics)
+	if err != nil {
+		return err
+	}
+
+	compress, err := compressData(metricsJson)
+	if err != nil {
+		return err
+	}
+
+	response, err := r.client.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(compress).
+		Post(updateUrl)
+	if err != nil {
+		return err
+	}
+
+	if response.StatusCode() != http.StatusOK {
+		return fmt.Errorf("Ошибка отправки метрик: статус - %d, ответ - %s", response.StatusCode(), response.String())
+	}
+
+	return nil
+}
+
 func compressData(data []byte) ([]byte, error) {
 	var b bytes.Buffer
 

@@ -17,6 +17,7 @@ type Collector interface {
 
 type SenderRepository interface {
 	SendMetric(metrics models.Metrics) error
+	SendBatchMetric(metrics []models.Metrics) error
 }
 
 type agent struct {
@@ -77,8 +78,8 @@ func (a *agent) sendSnapshot() error {
 	a.mu.Unlock()
 
 	var err error
-	for _, value := range metrics {
-		err = a.repository.SendMetric(value)
+	if len(metrics) > 0 {
+		err = a.repository.SendBatchMetric(metrics)
 		if err != nil {
 			return err
 		}

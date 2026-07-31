@@ -16,8 +16,9 @@ import (
 type Storage interface {
 	GetMetric(name string) (models.Metrics, error)
 	GetAllMetrics() []models.Metrics
-	UpdateMetric(metric models.Metrics) error
+	UpdateMetric(metric models.Metrics, needSave bool) error
 	CreateMetric(metricType string, name string, value string) (models.Metrics, error)
+	UpdatesMetrics([]models.Metrics) error
 }
 
 type Database interface {
@@ -50,7 +51,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	err = h.storage.UpdateMetric(metric)
+	err = h.storage.UpdateMetric(metric, true)
 	if err != nil {
 		errorHandler(w, err)
 
@@ -114,7 +115,7 @@ func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	err = h.storage.UpdateMetric(metric)
+	err = h.storage.UpdateMetric(metric, true)
 	if err != nil {
 		h.writeJsonError(writer, http.StatusBadRequest, err)
 
@@ -184,6 +185,36 @@ func (h *Handler) PingHandler(writer http.ResponseWriter, request *http.Request)
 	if err := h.db.Ping(); err != nil {
 		writer.WriteHeader(http.StatusInternalServerError)
 		writer.Write([]byte("Ошибка соединения с БД"))
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+
+	decoder := json.NewDecoder(request.Body)
+	defer request.Body.Close()
+
+	var metrics []models.Metrics
+	err := decoder.Decode(&metrics)
+	if err != nil {
+		h.writeJsonError(writer, http.StatusBadRequest, err)
+
+		return
+	}
+
+	if len(metrics) == 0 {
+		h.writeJsonError(writer, http.StatusBadRequest, fmt.Errorf("Не переданы метрики"))
+
+		return
+	}
+
+	err = h.storage.UpdatesMetrics(metrics)
+	if err != nil {
+		h.writeJsonError(writer, http.StatusBadRequest, err)
 
 		return
 	}
