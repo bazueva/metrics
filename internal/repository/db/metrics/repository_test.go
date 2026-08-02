@@ -3,12 +3,15 @@ package metrics
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/bazueva/metrics/internal/interfaces/mocks"
 	models "github.com/bazueva/metrics/internal/model"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	mock2 "github.com/stretchr/testify/mock"
 )
@@ -60,6 +63,72 @@ func TestRepository_Save(t *testing.T) {
 		err = repo.Save(ctx, data)
 
 		assert.Equal(t, "ошибка", err.Error())
+	})
+
+	t.Run("retry", func(t *testing.T) {
+		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		ctx := context.Background()
+
+		logger := mocks.NewMockLogger(t)
+		logger.EXPECT().
+			Error("Ошибка выполнения запроса", mock2.Anything).
+			Times(4)
+
+		logger.EXPECT().
+			Info("Попытка выполнения запроса", mock2.Anything).
+			Times(3)
+
+		repo := NewRepository(db, logger)
+
+		connectErr := &pgconn.ConnectError{
+			Config: &pgconn.Config{
+				Host: "127.0.0.1",
+				Port: 5432,
+			},
+		}
+
+		val := reflect.ValueOf(connectErr).Elem()
+		field := val.FieldByName("err")
+
+		field = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+
+		internalErr := errors.New("connection refused")
+		field.Set(reflect.ValueOf(internalErr))
+
+		queryStr := `INSERT INTO metrics(metric_id, type, delta, value) VALUES ($1, $2, $3, $4),($5, $6, $7, $8) ON CONFLICT (metric_id) DO UPDATE 
+    SET type = EXCLUDED.type, 
+        delta = EXCLUDED.delta, 
+        value = EXCLUDED.value, 
+        updated_at = CURRENT_TIMESTAMP`
+		for i := 0; i < 4; i++ {
+			mock.ExpectExec(queryStr).
+				WithArgs(
+					"test1", models.Gauge, nil, new(float64(1)),
+					"test2", models.Counter, new(int64(5)), nil,
+				).
+				WillReturnError(connectErr)
+		}
+
+		data := []models.Metrics{
+			{
+				ID:    "test1",
+				MType: models.Gauge,
+				Value: new(float64(1)),
+			},
+			{
+				ID:    "test2",
+				MType: models.Counter,
+				Delta: new(int64(5)),
+			},
+		}
+		err = repo.Save(ctx, data)
+
+		assert.Equal(t, "failed to connect to `user= database=`: connection refused", err.Error())
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -228,6 +297,52 @@ func TestRepository_Load(t *testing.T) {
 
 		assert.Nil(t, data)
 		assert.Equal(t, "canceling query due to user request", err.Error())
+	})
+
+	t.Run("retry", func(t *testing.T) {
+		db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherEqual))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+
+		ctx := context.Background()
+
+		logger := mocks.NewMockLogger(t)
+		logger.EXPECT().
+			Error("Ошибка выполнения запроса", mock2.Anything).
+			Times(4)
+
+		logger.EXPECT().
+			Info("Попытка выполнения запроса", mock2.Anything).
+			Times(3)
+
+		repo := NewRepository(db, logger)
+
+		connectErr := &pgconn.ConnectError{
+			Config: &pgconn.Config{
+				Host: "127.0.0.1",
+				Port: 5432,
+			},
+		}
+
+		val := reflect.ValueOf(connectErr).Elem()
+		field := val.FieldByName("err")
+
+		field = reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem()
+
+		internalErr := errors.New("connection refused")
+		field.Set(reflect.ValueOf(internalErr))
+
+		queryStr := `SELECT metric_id, type, delta, value FROM metrics`
+		for i := 0; i < 4; i++ {
+			mock.ExpectQuery(queryStr).WillReturnError(connectErr)
+		}
+
+		data, err := repo.Load(ctx)
+
+		assert.Nil(t, data)
+		assert.Equal(t, "failed to connect to `user= database=`: connection refused", err.Error())
 	})
 
 	t.Run("success", func(t *testing.T) {
