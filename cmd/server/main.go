@@ -49,7 +49,7 @@ func main() {
 		if err = db.Ping(); err != nil {
 			memStorageRepository = file.NewRepository(cfg.FileStoragePath)
 		} else {
-			memStorageRepository = metrics.NewRepository(db)
+			memStorageRepository = metrics.NewRepository(db, cfg.logger)
 		}
 	}
 

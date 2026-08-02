@@ -7,13 +7,15 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/bazueva/metrics/internal/interfaces/mocks"
 	models "github.com/bazueva/metrics/internal/model"
 	"github.com/stretchr/testify/assert"
+	mock2 "github.com/stretchr/testify/mock"
 )
 
 func TestRepository_Save(t *testing.T) {
 	t.Run("empty data", func(t *testing.T) {
-		repo := NewRepository(nil)
+		repo := NewRepository(nil, nil)
 
 		assert.Nil(t, repo.Save(nil, nil))
 	})
@@ -25,9 +27,12 @@ func TestRepository_Save(t *testing.T) {
 		}
 		defer db.Close()
 
+		logger := mocks.NewMockLogger(t)
+		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
+
 		ctx := context.Background()
 
-		repo := NewRepository(db)
+		repo := NewRepository(db, logger)
 
 		mock.ExpectExec(`INSERT INTO metrics(metric_id, type, delta, value) VALUES ($1, $2, $3, $4),($5, $6, $7, $8) ON CONFLICT (metric_id) DO UPDATE 
     SET type = EXCLUDED.type, 
@@ -66,7 +71,7 @@ func TestRepository_Save(t *testing.T) {
 
 		ctx := context.Background()
 
-		repo := NewRepository(db)
+		repo := NewRepository(db, nil)
 
 		mock.ExpectExec(`INSERT INTO metrics(metric_id, type, delta, value) VALUES ($1, $2, $3, $4) ON CONFLICT (metric_id) DO UPDATE 
 		SET type = EXCLUDED.type, 
@@ -98,7 +103,10 @@ func TestRepository_Save(t *testing.T) {
 
 		ctx := context.Background()
 
-		repo := NewRepository(db)
+		logger := mocks.NewMockLogger(t)
+		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
+
+		repo := NewRepository(db, logger)
 
 		mock.ExpectExec(`INSERT INTO metrics(metric_id, type, delta, value) VALUES ($1, $2, $3, $4) ON CONFLICT (metric_id) DO UPDATE 
 		SET type = EXCLUDED.type, 
@@ -133,7 +141,10 @@ func TestRepository_Load(t *testing.T) {
 
 		ctx := context.Background()
 
-		repo := NewRepository(db)
+		logger := mocks.NewMockLogger(t)
+		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
+
+		repo := NewRepository(db, logger)
 
 		mock.ExpectQuery(`SELECT metric_id, type, delta, value FROM metrics`).
 			WillReturnError(errors.New("ошибка"))
@@ -153,7 +164,7 @@ func TestRepository_Load(t *testing.T) {
 
 		ctx := context.Background()
 
-		repo := NewRepository(db)
+		repo := NewRepository(db, nil)
 
 		mock.ExpectQuery(`SELECT metric_id, type, delta, value FROM metrics`).
 			WillReturnRows(
@@ -176,7 +187,7 @@ func TestRepository_Load(t *testing.T) {
 
 		ctx := context.Background()
 
-		repo := NewRepository(db)
+		repo := NewRepository(db, nil)
 
 		mock.ExpectQuery(`SELECT metric_id, type, delta, value FROM metrics`).
 			WillReturnRows(
@@ -201,7 +212,10 @@ func TestRepository_Load(t *testing.T) {
 
 		ctx := context.Background()
 
-		repo := NewRepository(db)
+		logger := mocks.NewMockLogger(t)
+		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
+
+		repo := NewRepository(db, logger)
 
 		mock.ExpectQuery(`SELECT metric_id, type, delta, value FROM metrics`).
 			WillReturnRows(
@@ -225,7 +239,7 @@ func TestRepository_Load(t *testing.T) {
 
 		ctx := context.Background()
 
-		repo := NewRepository(db)
+		repo := NewRepository(db, nil)
 
 		mock.ExpectQuery(`SELECT metric_id, type, delta, value FROM metrics`).
 			WillReturnRows(

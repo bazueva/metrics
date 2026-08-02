@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bazueva/metrics/internal/interfaces"
 	models "github.com/bazueva/metrics/internal/model"
 	"go.uber.org/zap"
 )
@@ -22,10 +23,6 @@ var (
 	ErrNotFoundMetric      = errors.New("not found")
 )
 
-type Logger interface {
-	Error(msg string, fields ...zap.Field)
-}
-
 type Repository interface {
 	Save(ctx context.Context, data []models.Metrics) error
 	Load(ctx context.Context) ([]models.Metrics, error)
@@ -34,7 +31,7 @@ type Repository interface {
 type MemStorage struct {
 	metrics       map[string]models.Metrics
 	repository    Repository
-	logger        Logger
+	logger        interfaces.Logger
 	storeInterval int
 	mu            sync.RWMutex
 }
@@ -229,7 +226,7 @@ func (ms *MemStorage) RunSaver() {
 	}()
 }
 
-func NewMemStorage(repository Repository, loadMetrics bool, logger Logger, storeInterval int) *MemStorage {
+func NewMemStorage(repository Repository, loadMetrics bool, logger interfaces.Logger, storeInterval int) *MemStorage {
 	storage := &MemStorage{
 		metrics:       make(map[string]models.Metrics),
 		repository:    repository,

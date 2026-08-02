@@ -16,6 +16,10 @@ import (
 type LoggerMock struct {
 }
 
+func (l *LoggerMock) Info(msg string, fields ...zap.Field) {
+	fmt.Println(msg)
+}
+
 func (l *LoggerMock) Error(msg string, fields ...zap.Field) {
 	fmt.Println(msg)
 }

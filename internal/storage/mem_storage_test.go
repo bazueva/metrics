@@ -31,6 +31,10 @@ type LoggerMock struct {
 	callCount int
 }
 
+func (l *LoggerMock) Info(msg string, fields ...zap.Field) {
+	l.callCount++
+}
+
 func (l *LoggerMock) Error(msg string, fields ...zap.Field) {
 	l.callCount++
 }

@@ -215,16 +215,16 @@ func (_c *MockStorage_GetMetric_Call) RunAndReturn(run func(name string) (models
 }
 
 // UpdateMetric provides a mock function for the type MockStorage
-func (_mock *MockStorage) UpdateMetric(metric models.Metrics) error {
-	ret := _mock.Called(metric)
+func (_mock *MockStorage) UpdateMetric(metric models.Metrics, needSave bool) error {
+	ret := _mock.Called(metric, needSave)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateMetric")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(models.Metrics) error); ok {
-		r0 = returnFunc(metric)
+	if returnFunc, ok := ret.Get(0).(func(models.Metrics, bool) error); ok {
+		r0 = returnFunc(metric, needSave)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -238,18 +238,24 @@ type MockStorage_UpdateMetric_Call struct {
 
 // UpdateMetric is a helper method to define mock.On call
 //   - metric models.Metrics
-func (_e *MockStorage_Expecter) UpdateMetric(metric any) *MockStorage_UpdateMetric_Call {
-	return &MockStorage_UpdateMetric_Call{Call: _e.mock.On("UpdateMetric", metric)}
+//   - needSave bool
+func (_e *MockStorage_Expecter) UpdateMetric(metric any, needSave any) *MockStorage_UpdateMetric_Call {
+	return &MockStorage_UpdateMetric_Call{Call: _e.mock.On("UpdateMetric", metric, needSave)}
 }
 
-func (_c *MockStorage_UpdateMetric_Call) Run(run func(metric models.Metrics)) *MockStorage_UpdateMetric_Call {
+func (_c *MockStorage_UpdateMetric_Call) Run(run func(metric models.Metrics, needSave bool)) *MockStorage_UpdateMetric_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 models.Metrics
 		if args[0] != nil {
 			arg0 = args[0].(models.Metrics)
 		}
+		var arg1 bool
+		if args[1] != nil {
+			arg1 = args[1].(bool)
+		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -260,7 +266,58 @@ func (_c *MockStorage_UpdateMetric_Call) Return(err error) *MockStorage_UpdateMe
 	return _c
 }
 
-func (_c *MockStorage_UpdateMetric_Call) RunAndReturn(run func(metric models.Metrics) error) *MockStorage_UpdateMetric_Call {
+func (_c *MockStorage_UpdateMetric_Call) RunAndReturn(run func(metric models.Metrics, needSave bool) error) *MockStorage_UpdateMetric_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// UpdatesMetrics provides a mock function for the type MockStorage
+func (_mock *MockStorage) UpdatesMetrics(metricss []models.Metrics) error {
+	ret := _mock.Called(metricss)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdatesMetrics")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func([]models.Metrics) error); ok {
+		r0 = returnFunc(metricss)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockStorage_UpdatesMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdatesMetrics'
+type MockStorage_UpdatesMetrics_Call struct {
+	*mock.Call
+}
+
+// UpdatesMetrics is a helper method to define mock.On call
+//   - metricss []models.Metrics
+func (_e *MockStorage_Expecter) UpdatesMetrics(metricss any) *MockStorage_UpdatesMetrics_Call {
+	return &MockStorage_UpdatesMetrics_Call{Call: _e.mock.On("UpdatesMetrics", metricss)}
+}
+
+func (_c *MockStorage_UpdatesMetrics_Call) Run(run func(metricss []models.Metrics)) *MockStorage_UpdatesMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 []models.Metrics
+		if args[0] != nil {
+			arg0 = args[0].([]models.Metrics)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockStorage_UpdatesMetrics_Call) Return(err error) *MockStorage_UpdatesMetrics_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockStorage_UpdatesMetrics_Call) RunAndReturn(run func(metricss []models.Metrics) error) *MockStorage_UpdatesMetrics_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -5,7 +5,9 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"time"
 
 	models "github.com/bazueva/metrics/internal/model"
 	resty "github.com/go-resty/resty/v2"
@@ -23,8 +25,32 @@ func NewRepository(addr string) (*repository, error) {
 
 	return &repository{
 		addr:   addr,
-		client: resty.New(),
+		client: createClient(),
 	}, nil
+}
+
+func createClient() *resty.Client {
+	return resty.New().
+		SetRetryCount(3).
+		SetRetryAfter(func(client *resty.Client, response *resty.Response) (time.Duration, error) {
+			attempt := response.Request.Attempt
+			delay := time.Duration(2*attempt-1) * time.Second
+
+			log.Printf("Попытка #%d: начинаем ожидание %v (время: %v)",
+				attempt, delay, time.Now().Format("15:04:05"))
+
+			return delay, nil
+		}).
+		SetRetryMaxWaitTime(5 * time.Second).
+		AddRetryHook(
+			func(r *resty.Response, err error) {
+				log.Printf(
+					"Повторная попытка... (Ошибка: %v, Адрес: %s)\n",
+					err,
+					r.Request.URL,
+				)
+			},
+		)
 }
 
 func (r *repository) SendMetric(metric models.Metrics) error {

@@ -4,15 +4,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bazueva/metrics/internal/interfaces"
 	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 )
 
-type Logger interface {
-	Info(msg string, fields ...zap.Field)
-}
-
-func ServerLogger(logger Logger) func(next http.Handler) http.Handler {
+func ServerLogger(logger interfaces.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
