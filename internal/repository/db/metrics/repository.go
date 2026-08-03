@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 )
 
 const (
-	loadTimeout = 1 * time.Second
+	defaultTimeout = 1 * time.Second
 )
 
 type Query interface {
@@ -72,7 +73,7 @@ func (r *Repository) executeWithRetry(
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		result, err := func() (any, error) {
-			ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Second)
+			ctxWithTimeout, cancel := context.WithTimeout(ctx, defaultTimeout*time.Second)
 			defer cancel()
 
 			if attempt > 1 {
@@ -138,8 +139,7 @@ func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
 		result = append(result, metric)
 	}
 
-	err = rows.Err()
-	if err != nil {
+	if err = rows.Err(); err != nil && !errors.Is(err, context.Canceled) {
 		return nil, err
 	}
 

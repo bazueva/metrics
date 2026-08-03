@@ -45,12 +45,11 @@ func main() {
 	}
 
 	var memStorageRepository storage.Repository
-	if cfg.LoadMetricsFromFile {
-		if err = db.Ping(); err != nil {
-			memStorageRepository = file.NewRepository(cfg.FileStoragePath)
-		} else {
-			memStorageRepository = metrics.NewRepository(db, cfg.logger)
-		}
+	switch {
+	case cfg.DatabaseDSN != "":
+		memStorageRepository = metrics.NewRepository(db, cfg.logger)
+	case cfg.FileStoragePath != "":
+		memStorageRepository = file.NewRepository(cfg.FileStoragePath)
 	}
 
 	memStorage := storage.NewMemStorage(
