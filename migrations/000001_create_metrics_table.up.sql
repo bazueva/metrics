@@ -7,7 +7,7 @@ END$$;
 
 create table IF NOT EXISTS metrics
     (
-        id SERIAL PRIMARY KEY,
+        id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         metric_id varchar(50) NOT NULL UNIQUE,
         type metrics_type NOT NULL,
         delta bigint,

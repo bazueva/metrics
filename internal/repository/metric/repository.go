@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/bazueva/metrics/internal/interfaces"
 	models "github.com/bazueva/metrics/internal/model"
 	resty "github.com/go-resty/resty/v2"
+	"go.uber.org/zap"
 )
 
 type repository struct {
@@ -18,26 +20,29 @@ type repository struct {
 	client *resty.Client
 }
 
-func NewRepository(addr string) (*repository, error) {
+func NewRepository(addr string, logger interfaces.Logger) (*repository, error) {
 	if addr == "" {
 		return nil, fmt.Errorf("Не указан адрес сервера")
 	}
 
 	return &repository{
 		addr:   addr,
-		client: createClient(),
+		client: createClient(logger),
 	}, nil
 }
 
-func createClient() *resty.Client {
+func createClient(logger interfaces.Logger) *resty.Client {
 	return resty.New().
 		SetRetryCount(3).
 		SetRetryAfter(func(client *resty.Client, response *resty.Response) (time.Duration, error) {
 			attempt := response.Request.Attempt
 			delay := time.Duration(2*attempt-1) * time.Second
 
-			log.Printf("Попытка #%d: начинаем ожидание %v (время: %v)",
-				attempt, delay, time.Now().Format("15:04:05"))
+			logger.Info("Попытка повторного запроса",
+				zap.Int("attempt", attempt),
+				zap.Duration("delay", delay),
+				zap.String("time", time.Now().Format("15:04:05")),
+			)
 
 			return delay, nil
 		}).

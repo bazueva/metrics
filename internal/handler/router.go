@@ -79,23 +79,23 @@ func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Req
 
 		return
 	}
-
-	writer.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 
+	result := make([]byte, 0)
+
 	for _, metric := range h.storage.GetAllMetrics() {
 		switch metric.MType {
 		case models.Counter:
-			writer.Write([]byte(fmt.Sprintf("%s - %d <br>", metric.ID, *metric.Delta)))
+			result = append(result, []byte(fmt.Sprintf("%s - %d <br>", metric.ID, *metric.Delta))...)
 		case models.Gauge:
-			writer.Write([]byte(fmt.Sprintf("%s - %f <br>", metric.ID, *metric.Value)))
+			result = append(result, []byte(fmt.Sprintf("%s - %f <br>", metric.ID, *metric.Value))...)
 		}
 	}
 
-	writer.WriteHeader(http.StatusOK)
+	writer.Write(result)
 }
 
 func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.Request) {
@@ -155,7 +155,6 @@ func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	writer.WriteHeader(http.StatusOK)
 	writer.Write(resultMetricJson)
 }
 
