@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/bazueva/metrics/internal/agent"
 	"github.com/bazueva/metrics/internal/agent/collector"
@@ -27,7 +28,7 @@ func main() {
 		logger,
 	)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	metricsAgent := agent.NewAgent(collector.NewCollector(), metricRepository, agentConfig.PollInterval, agentConfig.ReportInterval)

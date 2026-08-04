@@ -150,6 +150,7 @@ func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.R
 
 	resultMetricJson, err := json.Marshal(resultMetric)
 	if err != nil {
+		h.logger.Error("Ошибка json unmarshal", zap.Error(err))
 		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
