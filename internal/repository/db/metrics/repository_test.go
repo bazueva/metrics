@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"testing"
@@ -33,7 +32,7 @@ func TestRepository_Save(t *testing.T) {
 		logger := mocks.NewMockLogger(t)
 		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		repo := NewRepository(db, logger)
 
@@ -72,7 +71,7 @@ func TestRepository_Save(t *testing.T) {
 		}
 		defer db.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		logger := mocks.NewMockLogger(t)
 		logger.EXPECT().
@@ -138,7 +137,7 @@ func TestRepository_Save(t *testing.T) {
 		}
 		defer db.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		repo := NewRepository(db, nil)
 
@@ -170,7 +169,7 @@ func TestRepository_Save(t *testing.T) {
 		}
 		defer db.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		logger := mocks.NewMockLogger(t)
 		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
@@ -208,7 +207,7 @@ func TestRepository_Load(t *testing.T) {
 		}
 		defer db.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		logger := mocks.NewMockLogger(t)
 		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
@@ -231,7 +230,7 @@ func TestRepository_Load(t *testing.T) {
 		}
 		defer db.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		repo := NewRepository(db, nil)
 
@@ -254,7 +253,7 @@ func TestRepository_Load(t *testing.T) {
 		}
 		defer db.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		repo := NewRepository(db, nil)
 
@@ -279,7 +278,7 @@ func TestRepository_Load(t *testing.T) {
 		}
 		defer db.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		logger := mocks.NewMockLogger(t)
 		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
@@ -306,7 +305,7 @@ func TestRepository_Load(t *testing.T) {
 		}
 		defer db.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		logger := mocks.NewMockLogger(t)
 		logger.EXPECT().
@@ -352,7 +351,7 @@ func TestRepository_Load(t *testing.T) {
 		}
 		defer db.Close()
 
-		ctx := context.Background()
+		ctx := t.Context()
 
 		repo := NewRepository(db, nil)
 

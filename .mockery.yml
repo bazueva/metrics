@@ -1,6 +1,6 @@
 all: false
 dir: '{{.InterfaceDir}}/mocks'
-filename: 'mock_{{.InterfaceName}}.go'
+filename: 'mock_{{.InterfaceName| snakecase}}.gen.go'
 structname: '{{.Mock}}{{.InterfaceName}}'
 pkgname: 'mocks'
 packages:

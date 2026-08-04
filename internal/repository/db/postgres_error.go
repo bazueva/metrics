@@ -5,6 +5,7 @@ import (
 
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/samber/lo"
 )
 
 type PGErrorClassification int
@@ -42,6 +43,17 @@ func (pe *PostgresErrorClassifier) ClassifyRetry(err error) PGErrorClassificatio
 
 func ClassifyPgError(err *pgconn.PgError) PGErrorClassification {
 	if pgerrcode.IsConnectionException(err.Code) {
+		return Retriable
+	}
+
+	if lo.Contains([]string{
+		pgerrcode.SerializationFailure,
+		pgerrcode.DeadlockDetected,
+		pgerrcode.AdminShutdown,
+		pgerrcode.TooManyConnections,
+		pgerrcode.QueryCanceled,
+		pgerrcode.IOError,
+	}, err.Code) {
 		return Retriable
 	}
 
