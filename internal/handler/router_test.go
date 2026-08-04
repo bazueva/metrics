@@ -316,8 +316,8 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 				return mock
 			}(),
 			want: want{
-				code: http.StatusBadRequest,
-				body: `{"error":"ошибка"}`,
+				code: http.StatusInternalServerError,
+				body: `{"error":"Internal Server Error"}`,
 			},
 		},
 		{
@@ -529,8 +529,8 @@ func TestHandler_UpdatesMetricHandler(t *testing.T) {
 				return mock
 			}(),
 			want: want{
-				code: http.StatusBadRequest,
-				body: `{"error":"ошибка"}`,
+				code: http.StatusInternalServerError,
+				body: `{"error":"Internal Server Error"}`,
 			},
 		},
 		{

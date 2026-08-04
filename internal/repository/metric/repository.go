@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -49,10 +48,9 @@ func createClient(logger interfaces.Logger) *resty.Client {
 		SetRetryMaxWaitTime(5 * time.Second).
 		AddRetryHook(
 			func(r *resty.Response, err error) {
-				log.Printf(
-					"Повторная попытка... (Ошибка: %v, Адрес: %s)\n",
-					err,
-					r.Request.URL,
+				logger.Info("Повторная попытка...",
+					zap.Error(err),
+					zap.String("url", r.Request.URL),
 				)
 			},
 		)
