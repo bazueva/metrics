@@ -16,19 +16,26 @@ import (
 type Storage interface {
 	GetMetric(name string) (models.Metrics, error)
 	GetAllMetrics() []models.Metrics
-	UpdateMetric(metric models.Metrics) error
+	UpdateMetric(metric models.Metrics, needSave bool) error
 	CreateMetric(metricType string, name string, value string) (models.Metrics, error)
+	UpdatesMetrics([]models.Metrics) error
+}
+
+type Database interface {
+	Ping() error
 }
 
 type Handler struct {
 	storage Storage
 	logger  *zap.Logger
+	db      Database
 }
 
-func NewHandler(memStorage Storage, logger *zap.Logger) *Handler {
+func NewHandler(memStorage Storage, logger *zap.Logger, db Database) *Handler {
 	return &Handler{
 		storage: memStorage,
 		logger:  logger,
+		db:      db,
 	}
 }
 
@@ -44,7 +51,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	err = h.storage.UpdateMetric(metric)
+	err = h.storage.UpdateMetric(metric, true)
 	if err != nil {
 		errorHandler(w, err)
 
@@ -72,29 +79,30 @@ func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Req
 
 		return
 	}
-
-	writer.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	writer.WriteHeader(http.StatusOK)
+
+	result := make([]byte, 0)
 
 	for _, metric := range h.storage.GetAllMetrics() {
 		switch metric.MType {
 		case models.Counter:
-			writer.Write([]byte(fmt.Sprintf("%s - %d \n", metric.ID, *metric.Delta)))
+			result = append(result, []byte(fmt.Sprintf("%s - %d <br>", metric.ID, *metric.Delta))...)
 		case models.Gauge:
-			writer.Write([]byte(fmt.Sprintf("%s - %f \n", metric.ID, *metric.Value)))
+			result = append(result, []byte(fmt.Sprintf("%s - %f <br>", metric.ID, *metric.Value))...)
 		}
 	}
+
+	writer.Write(result)
 }
 
 func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	body, err := io.ReadAll(request.Body)
 	defer request.Body.Close()
 	if err != nil {
-		h.writeJsonError(writer, http.StatusBadRequest, err)
+		h.jsonErrorHandler(writer, err, http.StatusBadRequest)
 
 		return
 	}
@@ -102,14 +110,14 @@ func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.
 	var metric models.Metrics
 	err = json.Unmarshal(body, &metric)
 	if err != nil {
-		h.writeJsonError(writer, http.StatusBadRequest, err)
+		h.jsonErrorHandler(writer, err, http.StatusBadRequest)
 
 		return
 	}
 
-	err = h.storage.UpdateMetric(metric)
+	err = h.storage.UpdateMetric(metric, true)
 	if err != nil {
-		h.writeJsonError(writer, http.StatusBadRequest, err)
+		h.jsonErrorHandler(writer, err, 0)
 
 		return
 	}
@@ -120,7 +128,7 @@ func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.
 func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 	if request.ContentLength == 0 {
-		h.writeJsonError(writer, http.StatusBadRequest, fmt.Errorf("Не указана метрика"))
+		h.jsonErrorHandler(writer, fmt.Errorf("Не указана метрика"), http.StatusBadRequest)
 
 		return
 	}
@@ -128,26 +136,26 @@ func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.R
 	var metric models.Metrics
 	decoder := json.NewDecoder(request.Body)
 	if err := decoder.Decode(&metric); err != nil {
-		h.writeJsonError(writer, http.StatusBadRequest, err)
+		h.jsonErrorHandler(writer, err, http.StatusBadRequest)
 
 		return
 	}
 
 	resultMetric, err := h.storage.GetMetric(metric.ID)
 	if err != nil {
-		h.writeJsonError(writer, http.StatusNotFound, err)
+		h.jsonErrorHandler(writer, err, http.StatusNotFound)
 
 		return
 	}
 
 	resultMetricJson, err := json.Marshal(resultMetric)
 	if err != nil {
-		http.Error(writer, err.Error(), http.StatusInternalServerError)
+		h.logger.Error("Ошибка json unmarshal", zap.Error(err))
+		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
 	}
 
-	writer.WriteHeader(http.StatusOK)
 	writer.Write(resultMetricJson)
 }
 
@@ -161,12 +169,69 @@ func errorHandler(writer http.ResponseWriter, err error) {
 	}
 }
 
-func (h *Handler) writeJsonError(writer http.ResponseWriter, status int, err error) {
-	h.logger.Info(err.Error())
-	writer.Header().Set("Content-Type", "application/json")
-	writer.WriteHeader(status)
+func (h *Handler) jsonErrorHandler(writer http.ResponseWriter, err error, status int) {
+	httpStatus := http.StatusInternalServerError
 
+	if status > 0 {
+		httpStatus = status
+	} else {
+		switch {
+		case errors.Is(err, memStorage.ErrEmptyMetricName),
+			errors.Is(err, memStorage.ErrNotFoundMetric):
+			httpStatus = http.StatusBadRequest
+		default:
+			httpStatus = http.StatusInternalServerError
+			h.logger.Error("Ошибка", zap.Error(err))
+			err = errors.New(http.StatusText(httpStatus))
+		}
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(httpStatus)
 	json.NewEncoder(writer).Encode(map[string]string{
 		"error": err.Error(),
 	})
+}
+
+func (h *Handler) PingHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
+
+	if err := h.db.Ping(); err != nil {
+		writer.WriteHeader(http.StatusInternalServerError)
+		writer.Write([]byte("Ошибка соединения с БД"))
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
+
+	decoder := json.NewDecoder(request.Body)
+	defer request.Body.Close()
+
+	var metrics []models.Metrics
+	err := decoder.Decode(&metrics)
+	if err != nil {
+		h.jsonErrorHandler(writer, err, http.StatusBadRequest)
+
+		return
+	}
+
+	if len(metrics) == 0 {
+		h.jsonErrorHandler(writer, fmt.Errorf("Не переданы метрики"), http.StatusBadRequest)
+
+		return
+	}
+
+	err = h.storage.UpdatesMetrics(metrics)
+	if err != nil {
+		h.jsonErrorHandler(writer, err, 0)
+
+		return
+	}
+
+	writer.WriteHeader(http.StatusOK)
 }

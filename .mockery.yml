@@ -1,0 +1,17 @@
+all: false
+dir: '{{.InterfaceDir}}/mocks'
+filename: 'mock_{{.InterfaceName| snakecase}}.gen.go'
+structname: '{{.Mock}}{{.InterfaceName}}'
+pkgname: 'mocks'
+packages:
+  github.com/bazueva/metrics/internal/handler:
+    config:
+      all: true
+  github.com/bazueva/metrics/internal/repository/db:
+    config:
+      all: true
+      recursive: true
+  github.com/bazueva/metrics/internal/interfaces:
+    config:
+      all: true
+      recursive: true

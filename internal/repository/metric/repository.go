@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/bazueva/metrics/internal/interfaces"
 	models "github.com/bazueva/metrics/internal/model"
 	resty "github.com/go-resty/resty/v2"
+	"go.uber.org/zap"
 )
 
 type repository struct {
@@ -16,15 +19,41 @@ type repository struct {
 	client *resty.Client
 }
 
-func NewRepository(addr string) (*repository, error) {
+func NewRepository(addr string, logger interfaces.Logger) (*repository, error) {
 	if addr == "" {
 		return nil, fmt.Errorf("Не указан адрес сервера")
 	}
 
 	return &repository{
 		addr:   addr,
-		client: resty.New(),
+		client: createClient(logger),
 	}, nil
+}
+
+func createClient(logger interfaces.Logger) *resty.Client {
+	return resty.New().
+		SetRetryCount(3).
+		SetRetryAfter(func(client *resty.Client, response *resty.Response) (time.Duration, error) {
+			attempt := response.Request.Attempt
+			delay := time.Duration(2*attempt-1) * time.Second
+
+			logger.Info("Попытка повторного запроса",
+				zap.Int("attempt", attempt),
+				zap.Duration("delay", delay),
+				zap.String("time", time.Now().Format("15:04:05")),
+			)
+
+			return delay, nil
+		}).
+		SetRetryMaxWaitTime(5 * time.Second).
+		AddRetryHook(
+			func(r *resty.Response, err error) {
+				logger.Info("Повторная попытка...",
+					zap.Error(err),
+					zap.String("url", r.Request.URL),
+				)
+			},
+		)
 }
 
 func (r *repository) SendMetric(metric models.Metrics) error {
@@ -36,6 +65,35 @@ func (r *repository) SendMetric(metric models.Metrics) error {
 	}
 
 	compress, err := compressData(metricJson)
+	if err != nil {
+		return err
+	}
+
+	response, err := r.client.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Content-Encoding", "gzip").
+		SetBody(compress).
+		Post(updateUrl)
+	if err != nil {
+		return err
+	}
+
+	if response.StatusCode() != http.StatusOK {
+		return fmt.Errorf("Ошибка отправки метрик: статус - %d, ответ - %s", response.StatusCode(), response.String())
+	}
+
+	return nil
+}
+
+func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
+	updateUrl := fmt.Sprintf("%s/updates/", r.addr)
+
+	metricsJson, err := json.Marshal(metrics)
+	if err != nil {
+		return err
+	}
+
+	compress, err := compressData(metricsJson)
 	if err != nil {
 		return err
 	}

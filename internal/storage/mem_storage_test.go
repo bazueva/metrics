@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -16,18 +17,22 @@ type FileRepositoryMock struct {
 	callCount int
 }
 
-func (f *FileRepositoryMock) Save(data []models.Metrics) error {
+func (f *FileRepositoryMock) Save(ctx context.Context, data []models.Metrics) error {
 	f.data = data
 	f.callCount++
 	return f.err
 }
 
-func (f *FileRepositoryMock) LoadFromFile() ([]models.Metrics, error) {
+func (f *FileRepositoryMock) Load(ctx context.Context) ([]models.Metrics, error) {
 	return f.data, f.err
 }
 
 type LoggerMock struct {
 	callCount int
+}
+
+func (l *LoggerMock) Info(msg string, fields ...zap.Field) {
+	l.callCount++
 }
 
 func (l *LoggerMock) Error(msg string, fields ...zap.Field) {
@@ -249,7 +254,7 @@ func TestMemStorage_UpdateMetric(t *testing.T) {
 				tt.args.setup(storage)
 			}
 
-			err := storage.UpdateMetric(tt.args.metric)
+			err := storage.UpdateMetric(tt.args.metric, true)
 
 			assert.Equal(t, tt.want.metrics, storage.metrics)
 
@@ -390,8 +395,8 @@ func TestMemStorage_Save(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			storage := &MemStorage{
-				metrics:        tt.metrics,
-				fileRepository: tt.fileRepo,
+				metrics:    tt.metrics,
+				repository: tt.fileRepo,
 			}
 
 			err := storage.Save()

@@ -2,12 +2,14 @@ package handler
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bazueva/metrics/internal/handler/mocks"
 	models "github.com/bazueva/metrics/internal/model"
 	memStorage "github.com/bazueva/metrics/internal/storage"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +25,11 @@ type MockStorage struct {
 	createdMetricErr error
 }
 
-func (m *MockStorage) UpdateMetric(metric models.Metrics) error {
+func (m *MockStorage) UpdatesMetrics(metrics []models.Metrics) error {
+	return m.err
+}
+
+func (m *MockStorage) UpdateMetric(metric models.Metrics, needSave bool) error {
 	return m.err
 }
 
@@ -112,7 +118,7 @@ func TestHandler_UpdateHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage, nil)
+			handler := NewHandler(tt.memStorage, nil, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.UpdateHandler(recorder, tt.request)
@@ -193,7 +199,7 @@ func TestHandler_GetMetricHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage, nil)
+			handler := NewHandler(tt.memStorage, nil, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.GetMetricHandler(recorder, tt.request)
@@ -251,16 +257,16 @@ func TestHandler_GetAllMetricsHandler(t *testing.T) {
 			}(),
 			want: want{
 				code: http.StatusOK,
-				body: "test - 1000 \n" +
-					"test 2 - 1.220000 \n" +
-					"test 3 - 9.622000 \n",
+				body: "test - 1000 <br>" +
+					"test 2 - 1.220000 <br>" +
+					"test 3 - 9.622000 <br>",
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage, nil)
+			handler := NewHandler(tt.memStorage, nil, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.GetAllMetricsHandler(recorder, tt.request)
@@ -310,8 +316,8 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 				return mock
 			}(),
 			want: want{
-				code: http.StatusBadRequest,
-				body: `{"error":"ошибка"}`,
+				code: http.StatusInternalServerError,
+				body: `{"error":"Internal Server Error"}`,
 			},
 		},
 		{
@@ -333,7 +339,7 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger, _ := zap.NewDevelopment()
 
-			handler := NewHandler(tt.memStorage, logger)
+			handler := NewHandler(tt.memStorage, logger, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.UpdateMetricHandler(recorder, tt.request)
@@ -416,7 +422,7 @@ func TestHandler_ValueMetricHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger, _ := zap.NewDevelopment()
 
-			handler := NewHandler(tt.memStorage, logger)
+			handler := NewHandler(tt.memStorage, logger, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.ValueMetricHandler(recorder, tt.request)
@@ -430,6 +436,152 @@ func TestHandler_ValueMetricHandler(t *testing.T) {
 			assert.Equal(t, tt.want.code, result.StatusCode)
 			assert.JSONEq(t, tt.want.body, string(body))
 			assert.Equal(t, "application/json", result.Header.Get("Content-Type"))
+		})
+	}
+}
+
+func TestHandler_PingHandler(t *testing.T) {
+	type test struct {
+		name     string
+		db       *mocks.MockDatabase
+		wantBody string
+		status   int
+	}
+
+	tests := []test{
+		{
+			name: "error database",
+			db: func() *mocks.MockDatabase {
+				mock := mocks.NewMockDatabase(t)
+				mock.EXPECT().
+					Ping().
+					Return(errors.New("ошибка подключения"))
+
+				return mock
+			}(),
+			wantBody: "Ошибка соединения с БД",
+			status:   http.StatusInternalServerError,
+		},
+		{
+			name: "success",
+			db: func() *mocks.MockDatabase {
+				mock := mocks.NewMockDatabase(t)
+				mock.EXPECT().
+					Ping().
+					Return(nil)
+
+				return mock
+			}(),
+			wantBody: "",
+			status:   http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewHandler(nil, nil, tt.db)
+			recorder := httptest.NewRecorder()
+
+			handler.PingHandler(recorder, httptest.NewRequest("GET", "/ping", nil))
+
+			result := recorder.Result()
+			defer result.Body.Close()
+
+			body, err := io.ReadAll(result.Body)
+			assert.Nil(t, err)
+
+			assert.Equal(t, tt.status, recorder.Code)
+			assert.Equal(t, tt.wantBody, string(body))
+		})
+	}
+}
+
+func TestHandler_UpdatesMetricHandler(t *testing.T) {
+	type want struct {
+		code int
+		body string
+	}
+
+	type test struct {
+		name       string
+		request    *http.Request
+		memStorage Storage
+		want       want
+	}
+
+	tests := []test{
+		{
+			name:       "invalid json",
+			request:    httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`"test"`))),
+			memStorage: nil,
+			want: want{
+				code: http.StatusBadRequest,
+				body: `{"error":"json: cannot unmarshal string into Go value of type []models.Metrics"}`,
+			},
+		},
+		{
+			name:    "error storage updates metric",
+			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`[{"test":"1"}]`))),
+			memStorage: func() Storage {
+				mock := new(MockStorage)
+				mock.err = fmt.Errorf("ошибка")
+
+				return mock
+			}(),
+			want: want{
+				code: http.StatusInternalServerError,
+				body: `{"error":"Internal Server Error"}`,
+			},
+		},
+		{
+			name:    "empty metrics",
+			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`[]`))),
+			memStorage: func() Storage {
+				mock := new(MockStorage)
+
+				return mock
+			}(),
+			want: want{
+				code: http.StatusBadRequest,
+				body: `{"error":"Не переданы метрики"}`,
+			},
+		},
+		{
+			name:    "success",
+			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`[{"test":"1"}]`))),
+			memStorage: func() Storage {
+				mock := new(MockStorage)
+
+				return mock
+			}(),
+			want: want{
+				code: http.StatusOK,
+				body: ``,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logger, _ := zap.NewDevelopment()
+
+			handler := NewHandler(tt.memStorage, logger, nil)
+			recorder := httptest.NewRecorder()
+
+			handler.UpdatesMetricHandler(recorder, tt.request)
+
+			result := recorder.Result()
+			defer result.Body.Close()
+
+			body, err := io.ReadAll(result.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want.code, result.StatusCode)
+
+			if tt.want.body != "" || string(body) != "" {
+				assert.JSONEq(t, tt.want.body, string(body))
+			}
+
 		})
 	}
 }

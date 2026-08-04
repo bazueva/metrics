@@ -65,7 +65,7 @@ func TestRepository_Save(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := NewRepository(tt.fileName)
 
-			err := repo.Save(tt.data)
+			err := repo.Save(nil, tt.data)
 			if err != nil || tt.err != "" {
 				assert.Equal(t, tt.err, err.Error())
 			}
@@ -143,7 +143,7 @@ func TestRepository_LoadFromFile(t *testing.T) {
 				assert.Nil(t, err)
 			}
 
-			data, err := repo.LoadFromFile()
+			data, err := repo.Load(nil)
 			if err != nil || tt.err != "" {
 				assert.Equal(t, tt.err, err.Error())
 

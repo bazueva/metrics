@@ -14,6 +14,11 @@ type SenderRepositoryMock struct {
 	callCount int
 }
 
+func (s *SenderRepositoryMock) SendBatchMetric(metrics []models.Metrics) error {
+	s.callCount++
+	return s.err
+}
+
 func (s *SenderRepositoryMock) SendMetric(metric models.Metrics) error {
 	s.callCount++
 	return s.err

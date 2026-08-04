@@ -7,14 +7,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/bazueva/metrics/internal/interfaces"
 	"go.uber.org/zap"
 )
 
-type Logger interface {
-	Error(msg string, fields ...zap.Field)
-}
-
-func ServerUnpackGzip(logger Logger) func(next http.Handler) http.Handler {
+func ServerUnpackGzip(logger interfaces.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			if !strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
