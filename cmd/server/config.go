@@ -20,6 +20,7 @@ type config struct {
 	FileStoragePath     string               `env:"FILE_STORAGE_PATH"`
 	LoadMetricsFromFile bool                 `env:"RESTORE"`
 	DatabaseDSN         string               `env:"DATABASE_DSN"`
+	SecretKey           string               `env:"KEY"`
 
 	logger *zap.Logger
 }
@@ -52,6 +53,7 @@ func parseFlags(config *config) error {
 	serverFlags.StringVar(&config.FileStoragePath, "f", fileStoragePathDefault, "Storage file path")
 	serverFlags.BoolVar(&config.LoadMetricsFromFile, "r", false, "Load metrics from file")
 	serverFlags.StringVar(&config.DatabaseDSN, "d", "", "Database DSN")
+	serverFlags.StringVar(&config.SecretKey, "k", "", "Ключ для расчета hash")
 
 	if len(os.Args) > 1 {
 		err := serverFlags.Parse(os.Args[1:])

@@ -7,13 +7,13 @@ import (
 	"net/http"
 
 	dbpkg "github.com/bazueva/metrics/db"
+	"github.com/bazueva/metrics/internal/middleware/server"
 	"github.com/bazueva/metrics/internal/repository/db/metrics"
 	"github.com/bazueva/metrics/internal/repository/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/bazueva/metrics/internal/handler"
 	"github.com/bazueva/metrics/internal/logger"
-	"github.com/bazueva/metrics/internal/middleware"
 	"github.com/bazueva/metrics/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -68,8 +68,9 @@ func startServer(cfg config, memStorage *storage.MemStorage, db *sql.DB) {
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))
-	router.Use(middleware.ServerUnpackGzip(cfg.logger))
-	router.Use(middleware.ServerResponseGzip())
+	router.Use(server.UnpackGzip(cfg.logger))
+	router.Use(server.ResponseGzip())
+	router.Use(server.CheckSignData(cfg.SecretKey, cfg.logger))
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", httpHandler.UpdateHandler)
 	router.Get("/value/{metricType}/{metricName}", httpHandler.GetMetricHandler)

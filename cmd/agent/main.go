@@ -25,12 +25,18 @@ func main() {
 
 	metricRepository, err := metric.NewRepository(
 		fmt.Sprintf("http://%s", agentConfig.MetricServerAddr.String()),
+		agentConfig.SecretKey,
 		logger,
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	metricsAgent := agent.NewAgent(collector.NewCollector(), metricRepository, agentConfig.PollInterval, agentConfig.ReportInterval)
+	metricsAgent := agent.NewAgent(
+		collector.NewCollector(),
+		metricRepository,
+		agentConfig.PollInterval,
+		agentConfig.ReportInterval,
+	)
 	metricsAgent.Run()
 }

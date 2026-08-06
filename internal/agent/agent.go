@@ -16,7 +16,6 @@ type Collector interface {
 }
 
 type SenderRepository interface {
-	SendMetric(metrics models.Metrics) error
 	SendBatchMetric(metrics []models.Metrics) error
 }
 

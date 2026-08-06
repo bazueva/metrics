@@ -1,4 +1,4 @@
-package middleware
+package server
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func ServerUnpackGzip(logger interfaces.Logger) func(next http.Handler) http.Handler {
+func UnpackGzip(logger interfaces.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			if !strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {

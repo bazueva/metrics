@@ -14,6 +14,7 @@ type config struct {
 	MetricServerAddr configpkg.ServerAddr `env:"ADDRESS"`
 	ReportInterval   int                  `env:"REPORT_INTERVAL"`
 	PollInterval     int                  `env:"POLL_INTERVAL"`
+	SecretKey        string               `env:"KEY"`
 }
 
 func readConfig() (config, error) {
@@ -43,6 +44,7 @@ func parseFlags(config *config) error {
 
 	agentFlags.IntVar(&config.PollInterval, "p", agent.PollInterval, "Частота опроса метрик")
 	agentFlags.IntVar(&config.ReportInterval, "r", agent.ReportInterval, "Частота отправки метрик на сервер")
+	agentFlags.StringVar(&config.SecretKey, "k", "", "Ключ для расчета hash")
 
 	if len(os.Args) > 1 {
 		err := agentFlags.Parse(os.Args[1:])

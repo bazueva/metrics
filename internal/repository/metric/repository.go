@@ -3,6 +3,9 @@ package metric
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,18 +18,20 @@ import (
 )
 
 type repository struct {
-	addr   string
-	client *resty.Client
+	addr      string
+	client    *resty.Client
+	secretKey string
 }
 
-func NewRepository(addr string, logger interfaces.Logger) (*repository, error) {
+func NewRepository(addr string, secretKey string, logger interfaces.Logger) (*repository, error) {
 	if addr == "" {
 		return nil, fmt.Errorf("Не указан адрес сервера")
 	}
 
 	return &repository{
-		addr:   addr,
-		client: createClient(logger),
+		addr:      addr,
+		client:    createClient(logger),
+		secretKey: secretKey,
 	}, nil
 }
 
@@ -56,22 +61,26 @@ func createClient(logger interfaces.Logger) *resty.Client {
 		)
 }
 
-func (r *repository) SendMetric(metric models.Metrics) error {
-	updateUrl := fmt.Sprintf("%s/update", r.addr)
+func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
+	updateUrl := fmt.Sprintf("%s/updates/", r.addr)
 
-	metricJson, err := json.Marshal(metric)
+	metricsJson, err := json.Marshal(metrics)
 	if err != nil {
 		return err
 	}
 
-	compress, err := compressData(metricJson)
-	if err != nil {
-		return err
-	}
-
-	response, err := r.client.R().
+	request := r.client.R().
 		SetHeader("Content-Type", "application/json").
-		SetHeader("Content-Encoding", "gzip").
+		SetHeader("Content-Encoding", "gzip")
+
+	r.signData(metricsJson, request)
+
+	compress, err := compressData(metricsJson)
+	if err != nil {
+		return err
+	}
+
+	response, err := request.
 		SetBody(compress).
 		Post(updateUrl)
 	if err != nil {
@@ -85,33 +94,15 @@ func (r *repository) SendMetric(metric models.Metrics) error {
 	return nil
 }
 
-func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
-	updateUrl := fmt.Sprintf("%s/updates/", r.addr)
-
-	metricsJson, err := json.Marshal(metrics)
-	if err != nil {
-		return err
+func (r *repository) signData(data []byte, request *resty.Request) {
+	if r.secretKey == "" {
+		return
 	}
 
-	compress, err := compressData(metricsJson)
-	if err != nil {
-		return err
-	}
+	h := hmac.New(sha256.New, []byte(r.secretKey))
+	h.Write(data)
 
-	response, err := r.client.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("Content-Encoding", "gzip").
-		SetBody(compress).
-		Post(updateUrl)
-	if err != nil {
-		return err
-	}
-
-	if response.StatusCode() != http.StatusOK {
-		return fmt.Errorf("Ошибка отправки метрик: статус - %d, ответ - %s", response.StatusCode(), response.String())
-	}
-
-	return nil
+	request.SetHeader("HashSHA256", hex.EncodeToString(h.Sum(nil)))
 }
 
 func compressData(data []byte) ([]byte, error) {
