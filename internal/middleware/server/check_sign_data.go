@@ -15,7 +15,7 @@ import (
 func CheckSignData(secretKey string, logger interfaces.Logger) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			if secretKey == "" {
+			if secretKey == "" || r.Method != http.MethodPost {
 				next.ServeHTTP(w, r)
 
 				return

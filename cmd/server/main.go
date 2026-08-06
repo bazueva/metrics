@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	dbpkg "github.com/bazueva/metrics/db"
-	"github.com/bazueva/metrics/internal/middleware/server"
+	serverMiddleware "github.com/bazueva/metrics/internal/middleware/server"
 	"github.com/bazueva/metrics/internal/repository/db/metrics"
 	"github.com/bazueva/metrics/internal/repository/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -68,9 +68,9 @@ func startServer(cfg config, memStorage *storage.MemStorage, db *sql.DB) {
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))
-	router.Use(server.UnpackGzip(cfg.logger))
-	router.Use(server.ResponseGzip())
-	router.Use(server.CheckSignData(cfg.SecretKey, cfg.logger))
+	router.Use(serverMiddleware.UnpackGzip(cfg.logger))
+	router.Use(serverMiddleware.ResponseGzip())
+	router.Use(serverMiddleware.CheckSignData(cfg.SecretKey, cfg.logger))
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", httpHandler.UpdateHandler)
 	router.Get("/value/{metricType}/{metricName}", httpHandler.GetMetricHandler)
