@@ -54,7 +54,7 @@ func TestServerResponseGzip(t *testing.T) {
 				request.Header.Set("Accept-Encoding", tt.acceptEncoding)
 			}
 
-			middleware := ServerResponseGzip()
+			middleware := ResponseGzip()
 
 			responseWriter := httptest.NewRecorder()
 

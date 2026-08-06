@@ -97,8 +97,9 @@ func Test_readConfig(t *testing.T) {
 				},
 				ReportInterval: 48,
 				PollInterval:   19,
+				SecretKey:      "45666",
 			},
-			args: []string{"cmd", "-a", "local:1111", "-p", "19", "-r", "48"},
+			args: []string{"cmd", "-a", "local:1111", "-p", "19", "-r", "48", "-k", "45666"},
 		},
 		{
 			name: "with args and envs",
@@ -106,6 +107,7 @@ func Test_readConfig(t *testing.T) {
 				"POLL_INTERVAL":   "5",
 				"REPORT_INTERVAL": "5",
 				"ADDRESS":         "test:8900",
+				"KEY":             "5111",
 			},
 			want: config{
 				MetricServerAddr: configpkg.ServerAddr{
@@ -114,8 +116,9 @@ func Test_readConfig(t *testing.T) {
 				},
 				ReportInterval: 5,
 				PollInterval:   5,
+				SecretKey:      "5111",
 			},
-			args: []string{"cmd", "-a", "local:1111", "-p", "19", "-r", "48"},
+			args: []string{"cmd", "-a", "local:1111", "-p", "19", "-r", "48", "-k", "45666"},
 		},
 	}
 

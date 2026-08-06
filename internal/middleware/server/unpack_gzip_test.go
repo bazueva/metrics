@@ -94,7 +94,7 @@ func TestServerGzip(t *testing.T) {
 				request.Header.Set("Content-Encoding", "gzip")
 			}
 
-			middleware := ServerUnpackGzip(new(LoggerMock))
+			middleware := UnpackGzip(new(LoggerMock))
 
 			responseWriter := httptest.NewRecorder()
 

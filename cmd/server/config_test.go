@@ -55,8 +55,9 @@ func Test_readConfig(t *testing.T) {
 				StoreInterval:       20,
 				FileStoragePath:     "f.log",
 				LoadMetricsFromFile: true,
+				SecretKey:           "1222",
 			},
-			args: []string{"cmd", "-a", "local:1111", "-i", "20", "-f", "f.log", "-r", "true"},
+			args: []string{"cmd", "-a", "local:1111", "-i", "20", "-f", "f.log", "-r", "-k", "1222"},
 		},
 		{
 			name: "with args and env",
@@ -65,6 +66,7 @@ func Test_readConfig(t *testing.T) {
 				"STORE_INTERVAL":    "56",
 				"FILE_STORAGE_PATH": "file_env.log",
 				"RESTORE":           "true",
+				"KEY":               "11111",
 			},
 			want: config{
 				ServerAddr: configpkg.ServerAddr{
@@ -74,6 +76,7 @@ func Test_readConfig(t *testing.T) {
 				StoreInterval:       56,
 				FileStoragePath:     "file_env.log",
 				LoadMetricsFromFile: true,
+				SecretKey:           "11111",
 			},
 			args: []string{"cmd", "-a", "local:1111", "-i", "20", "-f", "f.log", "-r", "false"},
 		},
