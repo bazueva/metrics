@@ -37,6 +37,7 @@ func CheckSignData(secretKey string, logger interfaces.Logger) func(next http.Ha
 
 			hash := hex.EncodeToString(h.Sum(nil))
 			if hash != r.Header.Get("Hashsha256") {
+
 				w.WriteHeader(http.StatusBadRequest)
 				w.Write([]byte("wrong sign data"))
 
