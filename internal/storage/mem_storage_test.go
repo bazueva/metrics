@@ -329,7 +329,7 @@ func TestMemStorage_RunSaver(t *testing.T) {
 		logger := &LoggerMock{}
 
 		storage := NewMemStorage(fileRepo, false, logger, 0)
-		go storage.RunSaver()
+		go storage.RunSaver(t.Context())
 
 		time.Sleep(4 * time.Second)
 		assert.Equal(t, 0, fileRepo.callCount)
@@ -340,7 +340,7 @@ func TestMemStorage_RunSaver(t *testing.T) {
 		logger := &LoggerMock{}
 
 		storage := NewMemStorage(fileRepo, false, logger, 1)
-		go storage.RunSaver()
+		go storage.RunSaver(t.Context())
 
 		time.Sleep(4 * time.Second)
 		assert.Greater(t, fileRepo.callCount, 0)

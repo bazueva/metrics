@@ -209,18 +209,29 @@ func (ms *MemStorage) Save() error {
 	return ms.repository.Save(context.Background(), data)
 }
 
-func (ms *MemStorage) RunSaver() {
+func (ms *MemStorage) RunSaver(ctx context.Context) {
 	if ms.storeInterval == 0 {
 		return
 	}
 
 	go func() {
-		for {
-			time.Sleep(time.Duration(ms.storeInterval) * time.Second)
+		ticker := time.NewTicker(time.Duration(ms.storeInterval) * time.Second)
+		defer ticker.Stop()
 
-			err := ms.Save()
-			if err != nil {
-				ms.logger.Error("Ошибка сохранения метрик", zap.Error(err))
+		for {
+			select {
+			case <-ticker.C:
+				err := ms.Save()
+				if err != nil {
+					ms.logger.Error("Ошибка сохранения метрик", zap.Error(err))
+				}
+			case <-ctx.Done():
+				err := ms.Save()
+				if err != nil {
+					ms.logger.Error("Ошибка сохранения метрик", zap.Error(err))
+				}
+
+				return
 			}
 		}
 	}()
