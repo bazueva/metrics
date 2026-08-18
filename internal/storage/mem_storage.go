@@ -210,7 +210,9 @@ func (ms *MemStorage) Save() error {
 }
 
 func (ms *MemStorage) RunSaver(ctx context.Context) {
-	if ms.storeInterval == 0 {
+	interval := ms.storeInterval
+
+	if interval == 0 {
 		return
 	}
 

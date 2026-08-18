@@ -52,7 +52,7 @@ func (r *Repository) Save(ctx context.Context, data []models.Metrics) error {
 			value = EXCLUDED.value,
 			updated_at = CURRENT_TIMESTAMP`
 
-		_, err := r.executeWithRetry(ctx, false, "insert into metrics", sql, args...)
+		_, err := r.executeWithRetry(ctx, "insert into metrics", sql, args...)
 		if err != nil {
 			return err
 		}
@@ -63,15 +63,14 @@ func (r *Repository) Save(ctx context.Context, data []models.Metrics) error {
 
 func (r *Repository) executeWithRetry(
 	ctx context.Context,
-	isQuery bool,
 	queryName string,
 	query string,
 	args ...any,
-) (any, error) {
+) (sql.Result, error) {
 	maxRetries := 4
 
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		result, err := func() (any, error) {
+		result, err := func() (sql.Result, error) {
 			ctxWithTimeout, cancel := context.WithTimeout(ctx, defaultTimeout)
 			defer cancel()
 
@@ -81,10 +80,6 @@ func (r *Repository) executeWithRetry(
 					zap.Int("attempt", attempt),
 					zap.String("delay", time.Now().Format("15:04:05.000")),
 				)
-			}
-
-			if isQuery {
-				return r.db.QueryContext(ctxWithTimeout, query, args...)
 			}
 
 			return r.db.ExecContext(ctxWithTimeout, query, args...)
@@ -114,31 +109,78 @@ func (r *Repository) executeWithRetry(
 	return nil, nil
 }
 
-func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
-	resultAny, err := r.executeWithRetry(ctx, true, "select all metric", `SELECT metric_id, type, delta, value FROM metrics`)
-	if err != nil {
-		return nil, err
-	}
+func (r *Repository) queryWithRetry(
+	ctx context.Context,
+	queryName string,
+	scanFn func(*sql.Rows) error,
+	query string,
+	args ...any,
+) error {
+	maxRetries := 4
 
-	rows, ok := resultAny.(*sql.Rows)
-	if !ok {
-		return nil, fmt.Errorf("Неверный тип результата")
-	}
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err := func() error {
+			ctxWithTimeout, cancel := context.WithTimeout(ctx, defaultTimeout)
+			defer cancel()
 
-	defer rows.Close()
+			if attempt > 1 {
+				r.logger.Info("Попытка выполнения запроса",
+					zap.String("query name", queryName),
+					zap.Int("attempt", attempt),
+					zap.String("delay", time.Now().Format("15:04:05.000")),
+				)
+			}
 
-	result := make([]models.Metrics, 0)
-	for rows.Next() {
-		var metric models.Metrics
-		err = rows.Scan(&metric.ID, &metric.MType, &metric.Delta, &metric.Value)
-		if err != nil {
-			return nil, err
+			rows, err := r.db.QueryContext(ctxWithTimeout, query, args...)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			return scanFn(rows)
+		}()
+
+		if err == nil {
+			return nil
 		}
 
-		result = append(result, metric)
+		r.logger.Error("Ошибка выполнения запроса",
+			zap.Error(err),
+		)
+
+		if r.errorClassifier.ClassifyRetry(err) != dbPkg.Retriable {
+			return err
+		}
+
+		if attempt == maxRetries {
+			return err
+		}
+
+		delay := time.Duration(2*attempt-1) * time.Second
+		time.Sleep(delay)
 	}
 
-	err = rows.Err()
+	return fmt.Errorf("unexpected error")
+}
+
+func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
+	result := make([]models.Metrics, 0)
+
+	err := r.queryWithRetry(
+		ctx,
+		"select all metric",
+		func(rows *sql.Rows) error {
+			for rows.Next() {
+				var metric models.Metrics
+				if err := rows.Scan(&metric.ID, &metric.MType, &metric.Delta, &metric.Value); err != nil {
+					return err
+				}
+				result = append(result, metric)
+			}
+			return rows.Err()
+		},
+		`SELECT metric_id, type, delta, value FROM metrics`)
+
 	if err != nil {
 		return nil, err
 	}

@@ -36,6 +36,7 @@ type MetricsSnapshotMock struct {
 
 func (m *MetricsSnapshotMock) MetricsSnapshot(counter int64) []models.Metrics {
 	m.callCount++
+
 	return m.metrics
 }
 

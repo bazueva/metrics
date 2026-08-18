@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,11 +16,17 @@ type FileRepositoryMock struct {
 	err       error
 	data      []models.Metrics
 	callCount int
+
+	mu sync.Mutex
 }
 
 func (f *FileRepositoryMock) Save(ctx context.Context, data []models.Metrics) error {
 	f.data = data
+
+	f.mu.Lock()
 	f.callCount++
+	f.mu.Unlock()
+
 	return f.err
 }
 
@@ -332,7 +339,12 @@ func TestMemStorage_RunSaver(t *testing.T) {
 		go storage.RunSaver(t.Context())
 
 		time.Sleep(4 * time.Second)
-		assert.Equal(t, 0, fileRepo.callCount)
+
+		fileRepo.mu.Lock()
+		callCount := fileRepo.callCount
+		fileRepo.mu.Unlock()
+
+		assert.Equal(t, 0, callCount)
 	})
 
 	t.Run("storeInterval > 0", func(t *testing.T) {
@@ -343,7 +355,12 @@ func TestMemStorage_RunSaver(t *testing.T) {
 		go storage.RunSaver(t.Context())
 
 		time.Sleep(4 * time.Second)
-		assert.Greater(t, fileRepo.callCount, 0)
+
+		fileRepo.mu.Lock()
+		callCount := fileRepo.callCount
+		fileRepo.mu.Unlock()
+
+		assert.Greater(t, callCount, 0)
 	})
 }
 

@@ -231,8 +231,10 @@ func TestRepository_Load(t *testing.T) {
 		defer db.Close()
 
 		ctx := t.Context()
+		logger := mocks.NewMockLogger(t)
+		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
 
-		repo := NewRepository(db, nil)
+		repo := NewRepository(db, logger)
 
 		mock.ExpectQuery(`SELECT metric_id, type, delta, value FROM metrics`).
 			WillReturnRows(
@@ -255,7 +257,9 @@ func TestRepository_Load(t *testing.T) {
 
 		ctx := t.Context()
 
-		repo := NewRepository(db, nil)
+		logger := mocks.NewMockLogger(t)
+		logger.EXPECT().Error("Ошибка выполнения запроса", mock2.Anything)
+		repo := NewRepository(db, logger)
 
 		mock.ExpectQuery(`SELECT metric_id, type, delta, value FROM metrics`).
 			WillReturnRows(
