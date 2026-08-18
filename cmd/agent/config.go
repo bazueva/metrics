@@ -15,6 +15,7 @@ type config struct {
 	ReportInterval   int                  `env:"REPORT_INTERVAL"`
 	PollInterval     int                  `env:"POLL_INTERVAL"`
 	SecretKey        string               `env:"KEY"`
+	RateLimit        int                  `env:"RATE_LIMIT"`
 }
 
 func readConfig() (config, error) {
@@ -45,6 +46,7 @@ func parseFlags(config *config) error {
 	agentFlags.IntVar(&config.PollInterval, "p", agent.PollInterval, "Частота опроса метрик")
 	agentFlags.IntVar(&config.ReportInterval, "r", agent.ReportInterval, "Частота отправки метрик на сервер")
 	agentFlags.StringVar(&config.SecretKey, "k", "", "Ключ для расчета hash")
+	agentFlags.IntVar(&config.RateLimit, "l", 1, "Количество горутин")
 
 	if len(os.Args) > 1 {
 		err := agentFlags.Parse(os.Args[1:])

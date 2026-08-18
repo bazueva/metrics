@@ -1,12 +1,17 @@
 package agent
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/bazueva/metrics/internal/agent/mocks"
+	interfacesMocks "github.com/bazueva/metrics/internal/interfaces/mocks"
 	models "github.com/bazueva/metrics/internal/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 type SenderRepositoryMock struct {
@@ -34,119 +39,341 @@ func (m *MetricsSnapshotMock) MetricsSnapshot(counter int64) []models.Metrics {
 	return m.metrics
 }
 
-func TestSender_sendSnapshot(t *testing.T) {
-	type test struct {
-		name  string
-		agent agent
-		err   bool
-	}
+func TestExtendedMetricUpdater(t *testing.T) {
+	t.Run("ошибка collector", func(t *testing.T) {
+		collector := mocks.NewMockCollector(t)
+		logger := interfacesMocks.NewMockLogger(t)
 
-	tests := []test{
-		{
-			name:  "empty metrics",
-			agent: agent{},
-			err:   false,
-		},
-		{
-			name: "error repository",
-			agent: agent{
-				metrics: []models.Metrics{
-					{
-						ID:    "test",
-						MType: models.Counter,
-						Delta: new(int64(1)),
-					},
-				},
-				repository: func() SenderRepository {
-					mock := &SenderRepositoryMock{err: fmt.Errorf("ошибка")}
+		ch := make(chan models.Metrics, 10)
 
-					return mock
-				}(),
-			},
-			err: true,
-		},
-		{
-			name: "success",
-			agent: agent{
-				metrics: []models.Metrics{
-					{
-						ID:    "test",
-						MType: models.Counter,
-						Delta: new(int64(1)),
-					},
-				},
-				repository: func() SenderRepository {
-					return new(SenderRepositoryMock)
-				}(),
-			},
-			err: false,
-		},
-	}
+		ctxWithCancel, cancel := context.WithCancel(t.Context())
+		defer cancel()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.agent.sendSnapshot()
+		collector.EXPECT().
+			ExtendedMetricSnapshot().
+			Return(nil, fmt.Errorf("ошибка ExtendedMetricSnapshot"))
 
-			if tt.err {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
+		logger.EXPECT().
+			Error("Ошибка сборка extended метрик", mock.Anything)
 
-func Test_updateMetric(t *testing.T) {
-	type test struct {
-		name  string
-		agent agent
-		want  []models.Metrics
-	}
+		agentTest := agent{
+			collector:    collector,
+			pollInterval: 1,
+			logger:       logger,
+		}
+		go agentTest.extendedMetricUpdater(ctxWithCancel, ch)
 
-	tests := []test{
-		{
-			name: "success",
-			agent: agent{
-				collector: &MetricsSnapshotMock{metrics: []models.Metrics{
-					{
-						ID: "test",
-					},
-				}},
-			},
-			want: []models.Metrics{
+		time.Sleep(time.Second * 2)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+
+		close(ch)
+		var received []models.Metrics
+		for m := range ch {
+			received = append(received, m)
+		}
+
+		assert.Equal(t, 0, len(received))
+	})
+
+	t.Run("успешный сбор метрик", func(t *testing.T) {
+		collector := mocks.NewMockCollector(t)
+		logger := interfacesMocks.NewMockLogger(t)
+
+		ch := make(chan models.Metrics, 10)
+
+		ctxWithCancel, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		collector.EXPECT().
+			ExtendedMetricSnapshot().
+			Return([]models.Metrics{
 				{
-					ID: "test",
+					ID:    "test1",
+					MType: models.Gauge,
+					Value: new(5.6),
 				},
-			},
-		},
-	}
+				{
+					ID:    "test2",
+					MType: models.Gauge,
+					Value: new(9.6),
+				},
+			}, nil).
+			Times(2)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.agent.updateMetric(0)
-			assert.Equal(t, tt.want, tt.agent.metrics)
-		})
-	}
+		agentTest := agent{
+			collector:    collector,
+			pollInterval: 1,
+			logger:       logger,
+		}
+		go agentTest.extendedMetricUpdater(ctxWithCancel, ch)
+
+		time.Sleep(time.Millisecond * 2500)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+
+		close(ch)
+		var received []models.Metrics
+		for m := range ch {
+			received = append(received, m)
+		}
+
+		assert.Equal(t, 4, len(received))
+	})
+
+	t.Run("завершается при отмене контекста", func(t *testing.T) {
+		collector := mocks.NewMockCollector(t)
+		logger := interfacesMocks.NewMockLogger(t)
+
+		ch := make(chan models.Metrics, 10)
+
+		ctxWithCancel, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		agentTest := agent{
+			collector:    collector,
+			pollInterval: 5,
+			logger:       logger,
+		}
+		go agentTest.extendedMetricUpdater(ctxWithCancel, ch)
+
+		time.Sleep(time.Millisecond * 100)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+
+		close(ch)
+		var received []models.Metrics
+		for m := range ch {
+			received = append(received, m)
+		}
+
+		assert.Equal(t, 0, len(received))
+	})
 }
 
-func TestAgent_Run(t *testing.T) {
-	a := NewAgent(
-		&MetricsSnapshotMock{metrics: []models.Metrics{
-			{
-				ID:    "test",
+func TestRuntimeMetricUpdater(t *testing.T) {
+	t.Run("успешный сбор метрик", func(t *testing.T) {
+		collector := mocks.NewMockCollector(t)
+		logger := interfacesMocks.NewMockLogger(t)
+
+		ch := make(chan models.Metrics, 10)
+
+		ctxWithCancel, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		collector.EXPECT().
+			MetricsSnapshot(mock.Anything).
+			Return([]models.Metrics{
+				{
+					ID:    "test1",
+					MType: models.Gauge,
+					Value: new(5.6),
+				},
+				{
+					ID:    "test2",
+					MType: models.Gauge,
+					Value: new(9.6),
+				},
+			}).
+			Times(2)
+
+		agentTest := agent{
+			collector:    collector,
+			pollInterval: 1,
+			logger:       logger,
+		}
+		go agentTest.runtimeMetricUpdater(ctxWithCancel, ch)
+
+		time.Sleep(time.Millisecond * 2500)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+
+		close(ch)
+		var received []models.Metrics
+		for m := range ch {
+			received = append(received, m)
+		}
+
+		assert.Equal(t, 4, len(received))
+	})
+
+	t.Run("завершается при отмене контекста", func(t *testing.T) {
+		collector := mocks.NewMockCollector(t)
+		logger := interfacesMocks.NewMockLogger(t)
+
+		ch := make(chan models.Metrics, 10)
+
+		ctxWithCancel, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		agentTest := agent{
+			collector:    collector,
+			pollInterval: 5,
+			logger:       logger,
+		}
+		go agentTest.runtimeMetricUpdater(ctxWithCancel, ch)
+
+		time.Sleep(time.Millisecond * 100)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+
+		close(ch)
+		var received []models.Metrics
+		for m := range ch {
+			received = append(received, m)
+		}
+
+		assert.Equal(t, 0, len(received))
+	})
+}
+
+func TestSenderSnapshot(t *testing.T) {
+	t.Run("накопление метрик и отправка по таймеру", func(t *testing.T) {
+		repository := mocks.NewMockSenderRepository(t)
+		logger := interfacesMocks.NewMockLogger(t)
+
+		repository.EXPECT().
+			SendBatchMetric(mock.MatchedBy(func(metrics []models.Metrics) bool {
+				return len(metrics) == 3
+			})).
+			Return(nil).
+			Times(1)
+
+		testAgent := &agent{
+			repository:     repository,
+			reportInterval: 1,
+			logger:         logger,
+		}
+
+		metricCh := make(chan models.Metrics, 10)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go testAgent.senderSnapshot(ctx, metricCh)
+
+		for i := 0; i < 3; i++ {
+			metricCh <- models.Metrics{
+				ID:    fmt.Sprintf("test%d", i),
 				MType: models.Gauge,
-				Value: new(float64(1)),
-			},
-		}},
-		&SenderRepositoryMock{},
-		1,
-		2,
-	)
+				Value: new(42.0),
+			}
+		}
 
-	go a.Run()
+		time.Sleep(1500 * time.Millisecond)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+	})
 
-	time.Sleep(3 * time.Second)
+	t.Run("отправка остатков при закрытии канала", func(t *testing.T) {
+		repository := mocks.NewMockSenderRepository(t)
+		logger := interfacesMocks.NewMockLogger(t)
 
-	assert.Greater(t, a.collector.(*MetricsSnapshotMock).callCount, 0)
-	assert.Greater(t, a.repository.(*SenderRepositoryMock).callCount, 0)
+		repository.EXPECT().
+			SendBatchMetric(mock.MatchedBy(func(metrics []models.Metrics) bool {
+				return len(metrics) == 2
+			})).
+			Return(nil).
+			Times(1)
+
+		testAgent := &agent{
+			repository:     repository,
+			reportInterval: 10,
+			logger:         logger,
+		}
+
+		metricCh := make(chan models.Metrics, 10)
+		ctx := context.Background()
+
+		go testAgent.senderSnapshot(ctx, metricCh)
+
+		metricCh <- models.Metrics{ID: "test1", MType: "gauge", Value: new(42.0)}
+		metricCh <- models.Metrics{ID: "test2", MType: "gauge", Value: new(43.0)}
+
+		close(metricCh)
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	t.Run("не отправляет пустой батч", func(t *testing.T) {
+		repository := mocks.NewMockSenderRepository(t)
+		logger := interfacesMocks.NewMockLogger(t)
+
+		testAgent := &agent{
+			repository:     repository,
+			reportInterval: 1,
+			logger:         logger,
+		}
+
+		metricCh := make(chan models.Metrics, 10)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go testAgent.senderSnapshot(ctx, metricCh)
+
+		time.Sleep(1500 * time.Millisecond)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	t.Run("завершение по контексту с отправкой остатков", func(t *testing.T) {
+		repository := mocks.NewMockSenderRepository(t)
+		logger := interfacesMocks.NewMockLogger(t)
+
+		repository.EXPECT().
+			SendBatchMetric(mock.MatchedBy(func(metrics []models.Metrics) bool {
+				return len(metrics) == 2
+			})).
+			Return(nil).
+			Times(1)
+
+		testAgent := &agent{
+			repository:     repository,
+			reportInterval: 10,
+			logger:         logger,
+		}
+
+		metricCh := make(chan models.Metrics, 10)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		go testAgent.senderSnapshot(ctx, metricCh)
+
+		metricCh <- models.Metrics{ID: "test1", MType: "gauge", Value: new(42.0)}
+		metricCh <- models.Metrics{ID: "test2", MType: "gauge", Value: new(43.0)}
+
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+	})
+
+	t.Run("ошибка отправки логируется", func(t *testing.T) {
+		repository := mocks.NewMockSenderRepository(t)
+		logger := interfacesMocks.NewMockLogger(t)
+
+		repository.EXPECT().
+			SendBatchMetric(mock.Anything).
+			Return(errors.New("ошибка отправки")).
+			Times(1)
+
+		logger.EXPECT().
+			Error("Ошибка отправки метрик", mock.Anything).
+			Times(1)
+
+		testAgent := &agent{
+			repository:     repository,
+			reportInterval: 1,
+			logger:         logger,
+		}
+
+		metricCh := make(chan models.Metrics, 10)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go testAgent.senderSnapshot(ctx, metricCh)
+
+		metricCh <- models.Metrics{ID: "test1", MType: "gauge", Value: new(42.0)}
+		metricCh <- models.Metrics{ID: "test2", MType: "gauge", Value: new(43.0)}
+
+		time.Sleep(1500 * time.Millisecond)
+		cancel()
+		time.Sleep(100 * time.Millisecond)
+	})
 }
