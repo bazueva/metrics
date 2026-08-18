@@ -1,12 +1,14 @@
 package agent
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/bazueva/metrics/internal/agent/mocks"
 	models "github.com/bazueva/metrics/internal/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 type SenderRepositoryMock struct {
@@ -31,69 +33,68 @@ type MetricsSnapshotMock struct {
 
 func (m *MetricsSnapshotMock) MetricsSnapshot(counter int64) []models.Metrics {
 	m.callCount++
+
 	return m.metrics
 }
 
 func TestSender_sendSnapshot(t *testing.T) {
-	type test struct {
-		name  string
-		agent agent
-		err   bool
-	}
+	t.Run("empty metrics", func(t *testing.T) {
+		testAgent := agent{}
 
-	tests := []test{
-		{
-			name:  "empty metrics",
-			agent: agent{},
-			err:   false,
-		},
-		{
-			name: "error repository",
-			agent: agent{
-				metrics: []models.Metrics{
-					{
-						ID:    "test",
-						MType: models.Counter,
-						Delta: new(int64(1)),
-					},
+		err := testAgent.sendSnapshot()
+		assert.Nil(t, err)
+	})
+
+	t.Run("repository error", func(t *testing.T) {
+		mockRepo := mocks.NewMockSenderRepository(t)
+
+		mockRepo.EXPECT().
+			SendBatchMetric(mock.Anything).
+			Return(errors.New("repository error")).
+			Times(1)
+
+		testAgent := &agent{
+			metrics: []models.Metrics{
+				{
+					ID:    "test",
+					MType: models.Counter,
+					Delta: new(int64(1)),
 				},
-				repository: func() SenderRepository {
-					mock := &SenderRepositoryMock{err: fmt.Errorf("ошибка")}
-
-					return mock
-				}(),
 			},
-			err: true,
-		},
-		{
-			name: "success",
-			agent: agent{
-				metrics: []models.Metrics{
-					{
-						ID:    "test",
-						MType: models.Counter,
-						Delta: new(int64(1)),
-					},
+			repository: mockRepo,
+		}
+
+		err := testAgent.sendSnapshot()
+		assert.Error(t, err)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		mockRepo := mocks.NewMockSenderRepository(t)
+
+		mockRepo.EXPECT().
+			SendBatchMetric(mock.Anything).
+			Return(nil).
+			Times(1)
+
+		testAgent := &agent{
+			metrics: []models.Metrics{
+				{
+					ID:    "test",
+					MType: models.Counter,
+					Delta: new(int64(1)),
 				},
-				repository: func() SenderRepository {
-					return new(SenderRepositoryMock)
-				}(),
+				{
+					ID:    "test2",
+					MType: models.Gauge,
+					Value: new(float64(123.45)),
+				},
 			},
-			err: false,
-		},
-	}
+			repository: mockRepo,
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.agent.sendSnapshot()
-
-			if tt.err {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+		err := testAgent.sendSnapshot()
+		assert.NoError(t, err)
+	})
 }
 
 func Test_updateMetric(t *testing.T) {
@@ -130,15 +131,25 @@ func Test_updateMetric(t *testing.T) {
 }
 
 func TestAgent_Run(t *testing.T) {
-	a := NewAgent(
-		&MetricsSnapshotMock{metrics: []models.Metrics{
+	mockCollector := mocks.NewMockCollector(t)
+	mockCollector.EXPECT().
+		MetricsSnapshot(mock.Anything).
+		Return([]models.Metrics{
 			{
 				ID:    "test",
 				MType: models.Gauge,
 				Value: new(float64(1)),
 			},
-		}},
-		&SenderRepositoryMock{},
+		})
+
+	mockRepository := mocks.NewMockSenderRepository(t)
+	mockRepository.EXPECT().
+		SendBatchMetric(mock.Anything).
+		Return(nil)
+
+	a := NewAgent(
+		mockCollector,
+		mockRepository,
 		1,
 		2,
 	)
@@ -146,7 +157,4 @@ func TestAgent_Run(t *testing.T) {
 	go a.Run()
 
 	time.Sleep(3 * time.Second)
-
-	assert.Greater(t, a.collector.(*MetricsSnapshotMock).callCount, 0)
-	assert.Greater(t, a.repository.(*SenderRepositoryMock).callCount, 0)
 }

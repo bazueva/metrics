@@ -210,12 +210,14 @@ func (ms *MemStorage) Save() error {
 }
 
 func (ms *MemStorage) RunSaver(ctx context.Context) {
-	if ms.storeInterval == 0 {
+	interval := ms.storeInterval
+
+	if interval == 0 {
 		return
 	}
 
 	go func() {
-		ticker := time.NewTicker(time.Duration(ms.storeInterval) * time.Second)
+		ticker := time.NewTicker(time.Duration(interval) * time.Second)
 		defer ticker.Stop()
 
 		for {
