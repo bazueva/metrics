@@ -2,12 +2,10 @@ package server
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"io"
 	"net/http"
 
+	"github.com/bazueva/metrics/internal/helpers"
 	"github.com/bazueva/metrics/internal/interfaces"
 	"go.uber.org/zap"
 )
@@ -32,11 +30,7 @@ func CheckSignData(secretKey string, logger interfaces.Logger) func(next http.Ha
 			}
 			defer r.Body.Close()
 
-			h := hmac.New(sha256.New, []byte(secretKey))
-			h.Write(body)
-
-			hash := hex.EncodeToString(h.Sum(nil))
-			if hash != r.Header.Get("Hashsha256") {
+			if helpers.GenerateHMAC(secretKey, body) != r.Header.Get("Hashsha256") {
 				w.WriteHeader(http.StatusBadRequest)
 				w.Write([]byte("wrong sign data"))
 

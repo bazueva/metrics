@@ -25,7 +25,6 @@ type SenderRepository interface {
 type agent struct {
 	collector      Collector
 	repository     SenderRepository
-	metrics        []models.Metrics
 	reportInterval int
 	pollInterval   int
 	rateLimit      int
@@ -52,43 +51,45 @@ func NewAgent(
 }
 
 func (a *agent) Run(ctx context.Context) {
-	runtimeMetricCh := make(chan models.Metrics, 100)
+	runtimeMetricCh := make(chan models.Metrics, a.rateLimit)
 
-	var wg sync.WaitGroup
+	var wgProducers sync.WaitGroup
+	var wgConsumers sync.WaitGroup
 
-	wg.Add(1)
+	wgProducers.Add(1)
 	go func() {
-		defer wg.Done()
+		defer wgProducers.Done()
 		a.runtimeMetricUpdater(ctx, runtimeMetricCh)
 	}()
 
-	wg.Add(1)
+	wgProducers.Add(1)
 	go func() {
-		defer wg.Done()
+		defer wgProducers.Done()
 		a.extendedMetricUpdater(ctx, runtimeMetricCh)
 	}()
 
 	for i := 0; i < a.rateLimit; i++ {
-		wg.Add(1)
+		wgConsumers.Add(1)
 		go func() {
-			defer wg.Done()
+			defer wgConsumers.Done()
 			a.senderSnapshot(ctx, runtimeMetricCh)
 		}()
 	}
 
-	wg.Wait()
+	wgProducers.Wait()
 	close(runtimeMetricCh)
+
+	wgConsumers.Wait()
 }
 
 func (a *agent) senderSnapshot(ctx context.Context, metricCh chan models.Metrics) {
 	metricStorage := make([]models.Metrics, 0)
 
-	timer := time.NewTicker(time.Duration(a.reportInterval) * time.Second)
-	defer timer.Stop()
+	tick := time.Tick(time.Duration(a.reportInterval) * time.Second)
 
 	for {
 		select {
-		case <-timer.C:
+		case <-tick:
 			if len(metricStorage) == 0 {
 				continue
 			}
@@ -103,10 +104,6 @@ func (a *agent) senderSnapshot(ctx context.Context, metricCh chan models.Metrics
 			}
 
 			metricStorage = append(metricStorage, metric)
-		case <-ctx.Done():
-			a.sendMetrics(metricStorage)
-
-			return
 		}
 	}
 }
@@ -114,12 +111,11 @@ func (a *agent) senderSnapshot(ctx context.Context, metricCh chan models.Metrics
 func (a *agent) runtimeMetricUpdater(ctx context.Context, metricsCh chan models.Metrics) {
 	counter := int64(0)
 
-	timer := time.NewTicker(time.Duration(a.pollInterval) * time.Second)
-	defer timer.Stop()
+	tick := time.Tick(time.Duration(a.pollInterval) * time.Second)
 
 	for {
 		select {
-		case <-timer.C:
+		case <-tick:
 			metrics := a.collector.MetricsSnapshot(counter)
 			counter++
 
@@ -132,12 +128,11 @@ func (a *agent) runtimeMetricUpdater(ctx context.Context, metricsCh chan models.
 }
 
 func (a *agent) extendedMetricUpdater(ctx context.Context, metricsCh chan models.Metrics) {
-	timer := time.NewTicker(time.Duration(a.pollInterval) * time.Second)
-	defer timer.Stop()
+	tick := time.Tick(time.Duration(a.pollInterval) * time.Second)
 
 	for {
 		select {
-		case <-timer.C:
+		case <-tick:
 			metrics, err := a.collector.ExtendedMetricSnapshot()
 			if err != nil {
 				a.logger.Error("Ошибка сборка extended метрик", zap.Error(err))

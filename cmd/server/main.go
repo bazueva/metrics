@@ -87,7 +87,9 @@ func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage
 	router.Use(logger.ServerLogger(cfg.logger))
 	router.Use(serverMiddleware.UnpackGzip(cfg.logger))
 	router.Use(serverMiddleware.ResponseGzip())
-	router.Use(serverMiddleware.CheckSignData(cfg.SecretKey, cfg.logger))
+	if cfg.SecretKey != "" {
+		router.Use(serverMiddleware.CheckSignData(cfg.SecretKey, cfg.logger))
+	}
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", httpHandler.UpdateHandler)
 	router.Get("/value/{metricType}/{metricName}", httpHandler.GetMetricHandler)

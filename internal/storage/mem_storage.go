@@ -217,12 +217,11 @@ func (ms *MemStorage) RunSaver(ctx context.Context) {
 	}
 
 	go func() {
-		ticker := time.NewTicker(time.Duration(ms.storeInterval) * time.Second)
-		defer ticker.Stop()
+		tick := time.Tick(time.Duration(ms.storeInterval) * time.Second)
 
 		for {
 			select {
-			case <-ticker.C:
+			case <-tick:
 				err := ms.Save()
 				if err != nil {
 					ms.logger.Error("Ошибка сохранения метрик", zap.Error(err))

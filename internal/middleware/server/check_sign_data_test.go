@@ -2,14 +2,12 @@ package server
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bazueva/metrics/internal/helpers"
 	"github.com/bazueva/metrics/internal/interfaces/mocks"
 	"github.com/stretchr/testify/assert"
 )
@@ -58,11 +56,7 @@ func TestCheckSignData(t *testing.T) {
 			)
 
 			if tt.secretKeyAgent != "" {
-				h := hmac.New(sha256.New, []byte(tt.secretKeyAgent))
-				h.Write(tt.body)
-
-				hash := hex.EncodeToString(h.Sum(nil))
-				request.Header.Set("Hashsha256", hash)
+				request.Header.Set("Hashsha256", helpers.GenerateHMAC(tt.secretKeyAgent, tt.body))
 			}
 
 			middleware := CheckSignData(tt.secretKeyServer, mocks.NewMockLogger(t))

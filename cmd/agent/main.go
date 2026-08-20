@@ -44,7 +44,7 @@ func main() {
 
 	go func() {
 		<-sigCh
-		fmt.Println("Получен Ctrl+C, останавливаемся...")
+		logger.Info("Получен Ctrl+C, останавливаемся...")
 		cancel()
 	}()
 

@@ -315,36 +315,6 @@ func TestSenderSnapshot(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	})
 
-	t.Run("завершение по контексту с отправкой остатков", func(t *testing.T) {
-		repository := mocks.NewMockSenderRepository(t)
-		logger := interfacesMocks.NewMockLogger(t)
-
-		repository.EXPECT().
-			SendBatchMetric(mock.MatchedBy(func(metrics []models.Metrics) bool {
-				return len(metrics) == 2
-			})).
-			Return(nil).
-			Times(1)
-
-		testAgent := &agent{
-			repository:     repository,
-			reportInterval: 10,
-			logger:         logger,
-		}
-
-		metricCh := make(chan models.Metrics, 10)
-		ctx, cancel := context.WithCancel(context.Background())
-
-		go testAgent.senderSnapshot(ctx, metricCh)
-
-		metricCh <- models.Metrics{ID: "test1", MType: "gauge", Value: new(42.0)}
-		metricCh <- models.Metrics{ID: "test2", MType: "gauge", Value: new(43.0)}
-
-		time.Sleep(100 * time.Millisecond)
-		cancel()
-		time.Sleep(100 * time.Millisecond)
-	})
-
 	t.Run("ошибка отправки логируется", func(t *testing.T) {
 		repository := mocks.NewMockSenderRepository(t)
 		logger := interfacesMocks.NewMockLogger(t)

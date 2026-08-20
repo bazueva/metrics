@@ -3,14 +3,12 @@ package metric
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/bazueva/metrics/internal/helpers"
 	"github.com/bazueva/metrics/internal/interfaces"
 	models "github.com/bazueva/metrics/internal/model"
 	resty "github.com/go-resty/resty/v2"
@@ -99,10 +97,7 @@ func (r *repository) signData(data []byte, request *resty.Request) {
 		return
 	}
 
-	h := hmac.New(sha256.New, []byte(r.secretKey))
-	h.Write(data)
-
-	request.SetHeader("HashSHA256", hex.EncodeToString(h.Sum(nil)))
+	request.SetHeader("HashSHA256", helpers.GenerateHMAC(r.secretKey, data))
 }
 
 func compressData(data []byte) ([]byte, error) {
