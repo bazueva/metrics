@@ -1,14 +1,54 @@
 package collector
 
 import (
+	"fmt"
 	randV2 "math/rand/v2"
 	"runtime"
 
 	models "github.com/bazueva/metrics/internal/model"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 type collector struct {
 	metricsSnapshot []models.Metrics
+}
+
+func (c *collector) ExtendedMetricSnapshot() ([]models.Metrics, error) {
+	virtualMemory, err := mem.VirtualMemory()
+	if err != nil {
+		return nil, err
+	}
+
+	percentages, err := cpu.Percent(0, true)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]models.Metrics, 0, len(percentages)+2)
+
+	result = append(result, []models.Metrics{
+		{
+			ID:    "TotalMemory",
+			MType: models.Gauge,
+			Value: new(float64(virtualMemory.Total)),
+		},
+		{
+			ID:    "FreeMemory",
+			MType: models.Gauge,
+			Value: new(float64(virtualMemory.Free)),
+		},
+	}...)
+
+	for i, v := range percentages {
+		result = append(result, models.Metrics{
+			ID:    fmt.Sprintf("CPUutilization%d", i),
+			MType: models.Gauge,
+			Value: &v,
+		})
+	}
+
+	return result, nil
 }
 
 func NewCollector() *collector {

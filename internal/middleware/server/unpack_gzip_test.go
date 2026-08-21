@@ -1,4 +1,4 @@
-package middleware
+package server
 
 import (
 	"bytes"
@@ -94,7 +94,7 @@ func TestServerGzip(t *testing.T) {
 				request.Header.Set("Content-Encoding", "gzip")
 			}
 
-			middleware := ServerUnpackGzip(new(LoggerMock))
+			middleware := UnpackGzip(new(LoggerMock))
 
 			responseWriter := httptest.NewRecorder()
 

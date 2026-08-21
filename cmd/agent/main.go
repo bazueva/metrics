@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/bazueva/metrics/internal/agent"
 	"github.com/bazueva/metrics/internal/agent/collector"
@@ -25,12 +29,32 @@ func main() {
 
 	metricRepository, err := metric.NewRepository(
 		fmt.Sprintf("http://%s", agentConfig.MetricServerAddr.String()),
+		agentConfig.SecretKey,
 		logger,
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	metricsAgent := agent.NewAgent(collector.NewCollector(), metricRepository, agentConfig.PollInterval, agentConfig.ReportInterval)
-	metricsAgent.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigCh
+		logger.Info("Получен Ctrl+C, останавливаемся...")
+		cancel()
+	}()
+
+	metricsAgent := agent.NewAgent(
+		collector.NewCollector(),
+		metricRepository,
+		agentConfig.PollInterval,
+		agentConfig.ReportInterval,
+		agentConfig.RateLimit,
+		logger,
+	)
+	metricsAgent.Run(ctx)
 }

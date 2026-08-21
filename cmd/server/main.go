@@ -1,19 +1,23 @@
 package main
 
 import (
+	"context"
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	dbpkg "github.com/bazueva/metrics/db"
+	serverMiddleware "github.com/bazueva/metrics/internal/middleware/server"
 	"github.com/bazueva/metrics/internal/repository/db/metrics"
 	"github.com/bazueva/metrics/internal/repository/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/bazueva/metrics/internal/handler"
 	"github.com/bazueva/metrics/internal/logger"
-	"github.com/bazueva/metrics/internal/middleware"
 	"github.com/bazueva/metrics/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
@@ -52,24 +56,40 @@ func main() {
 		memStorageRepository = file.NewRepository(cfg.FileStoragePath)
 	}
 
+	ctxWithCancel, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		cancel()
+	}()
+
 	memStorage := storage.NewMemStorage(
 		memStorageRepository,
 		cfg.LoadMetricsFromFile,
 		cfg.logger,
 		cfg.StoreInterval,
 	)
-	memStorage.RunSaver()
+	memStorage.RunSaver(ctxWithCancel)
 
-	startServer(cfg, memStorage, db)
+	startServer(ctxWithCancel, cfg, memStorage, db)
+
+	<-ctxWithCancel.Done()
+	cfg.logger.Info("Программа завершена")
 }
 
-func startServer(cfg config, memStorage *storage.MemStorage, db *sql.DB) {
+func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage, db *sql.DB) {
 	httpHandler := handler.NewHandler(memStorage, cfg.logger, db)
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))
-	router.Use(middleware.ServerUnpackGzip(cfg.logger))
-	router.Use(middleware.ServerResponseGzip())
+	router.Use(serverMiddleware.UnpackGzip(cfg.logger))
+	router.Use(serverMiddleware.ResponseGzip())
+	if cfg.SecretKey != "" {
+		router.Use(serverMiddleware.CheckSignData(cfg.SecretKey, cfg.logger))
+	}
 
 	router.Post("/update/{metricType}/{metricName}/{metricValue}", httpHandler.UpdateHandler)
 	router.Get("/value/{metricType}/{metricName}", httpHandler.GetMetricHandler)
@@ -80,7 +100,25 @@ func startServer(cfg config, memStorage *storage.MemStorage, db *sql.DB) {
 	router.Post("/value/", httpHandler.ValueMetricHandler)
 	router.Get("/ping", httpHandler.PingHandler)
 
-	if err := http.ListenAndServe(cfg.ServerAddr.String(), router); err != nil {
-		fmt.Println(err)
+	server := &http.Server{
+		Addr:    cfg.ServerAddr.String(),
+		Handler: router,
+	}
+
+	go func() {
+		cfg.logger.Info("Сервер запущен", zap.String("addr", cfg.ServerAddr.String()))
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			cfg.logger.Error("Ошибка сервера", zap.Error(err))
+		}
+	}()
+
+	<-ctx.Done()
+	cfg.logger.Info("Остановка сервера...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		cfg.logger.Error("Ошибка остановки сервера", zap.Error(err))
 	}
 }
