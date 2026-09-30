@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	models "github.com/bazueva/metrics/internal/model"
+	"github.com/bazueva/metrics/internal/notifier"
 	memStorage "github.com/bazueva/metrics/internal/storage"
+	"github.com/samber/lo"
 	"go.uber.org/zap"
 )
 
@@ -25,17 +29,28 @@ type Database interface {
 	Ping() error
 }
 
-type Handler struct {
-	storage Storage
-	logger  *zap.Logger
-	db      Database
+type Notifier interface {
+	Notify(event notifier.MetricsSavedEvent) error
 }
 
-func NewHandler(memStorage Storage, logger *zap.Logger, db Database) *Handler {
+type Handler struct {
+	storage  Storage
+	logger   *zap.Logger
+	db       Database
+	notifier Notifier
+}
+
+func NewHandler(
+	memStorage Storage,
+	logger *zap.Logger,
+	db Database,
+	notifier Notifier,
+) *Handler {
 	return &Handler{
-		storage: memStorage,
-		logger:  logger,
-		db:      db,
+		storage:  memStorage,
+		logger:   logger,
+		db:       db,
+		notifier: notifier,
 	}
 }
 
@@ -233,5 +248,26 @@ func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http
 		return
 	}
 
+	event := notifier.MetricsSavedEvent{
+		TS: time.Now().Unix(),
+		Metrics: lo.Map(metrics, func(metric models.Metrics, _ int) string {
+			return metric.ID
+		}),
+		IPAddress: getIPAddress(request),
+	}
+
+	if err := h.notifier.Notify(event); err != nil {
+		h.logger.Error("ошибка отправки сообщения аудита", zap.Error(err))
+	}
+
 	writer.WriteHeader(http.StatusOK)
+}
+
+func getIPAddress(request *http.Request) string {
+	host, _, err := net.SplitHostPort(request.RemoteAddr)
+	if err != nil {
+		return request.RemoteAddr
+	}
+
+	return host
 }
