@@ -23,7 +23,7 @@ type repository struct {
 
 func NewRepository(addr string, secretKey string, logger interfaces.Logger) (*repository, error) {
 	if addr == "" {
-		return nil, fmt.Errorf("Не указан адрес сервера")
+		return nil, fmt.Errorf("не указан адрес сервера")
 	}
 
 	return &repository{
@@ -86,7 +86,7 @@ func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
 	}
 
 	if response.StatusCode() != http.StatusOK {
-		return fmt.Errorf("Ошибка отправки метрик: статус - %d, ответ - %s", response.StatusCode(), response.String())
+		return fmt.Errorf("ошибка отправки метрик: статус - %d, ответ - %s", response.StatusCode(), response.String())
 	}
 
 	return nil
