@@ -21,6 +21,8 @@ type config struct {
 	LoadMetricsFromFile bool                 `env:"RESTORE"`
 	DatabaseDSN         string               `env:"DATABASE_DSN"`
 	SecretKey           string               `env:"KEY"`
+	AuditFile           string               `env:"AUDIT_FILE"`
+	AuditUrl            string               `env:"AUDIT_URL"`
 
 	logger *zap.Logger
 }
@@ -54,6 +56,8 @@ func parseFlags(config *config) error {
 	serverFlags.BoolVar(&config.LoadMetricsFromFile, "r", false, "Load metrics from file")
 	serverFlags.StringVar(&config.DatabaseDSN, "d", "", "Database DSN")
 	serverFlags.StringVar(&config.SecretKey, "k", "", "Ключ для расчета hash")
+	serverFlags.StringVar(&config.AuditFile, "-audit-file", "", "Audit file path")
+	serverFlags.StringVar(&config.AuditUrl, "-audit-url", "", "Audit url")
 
 	if len(os.Args) > 1 {
 		err := serverFlags.Parse(os.Args[1:])
