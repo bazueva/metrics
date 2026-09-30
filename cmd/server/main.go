@@ -91,10 +91,10 @@ func createNotifier(cfg config) *notifier.Notifier {
 		)
 	}
 
-	if cfg.AuditUrl != "" {
+	if cfg.AuditURL != "" {
 		subscribers = append(
 			subscribers,
-			notifier.NewHTTPSubscriber(cfg.AuditUrl),
+			notifier.NewHTTPSubscriber(cfg.AuditURL),
 		)
 	}
 
