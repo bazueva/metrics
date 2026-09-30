@@ -137,7 +137,11 @@ func (r *Repository) queryWithRetry(
 			}
 			defer rows.Close()
 
-			return scanFn(rows)
+			if err = scanFn(rows); err != nil {
+				return err
+			}
+
+			return rows.Err()
 		}()
 
 		if err == nil {
