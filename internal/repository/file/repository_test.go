@@ -56,7 +56,7 @@ func TestRepository_Save(t *testing.T) {
 				},
 			},
 			checkFile: false,
-			err:       "Ошибка сохранения - open /test/1/rt.log: no such file or directory",
+			err:       "ошибка сохранения - open /test/1/rt.log: no such file or directory",
 			fileName:  "/test/1/rt.log",
 		},
 	}
@@ -105,7 +105,7 @@ func TestRepository_LoadFromFile(t *testing.T) {
 			name:     "file not found",
 			data:     nil,
 			fileName: "test/1.log",
-			err:      "Ошибка чтения файла - open test/1.log: no such file or directory",
+			err:      "ошибка чтения файла - open test/1.log: no such file or directory",
 		},
 		{
 			name:           "empty file",

@@ -18,12 +18,12 @@ func (r *Repository) Save(ctx context.Context, data []models.Metrics) error {
 		return nil
 	}
 
-	dataJson, err := json.Marshal(data)
+	dataJSON, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("ошибка json.Marshal - %w", err)
 	}
 
-	err = os.WriteFile(r.filename, dataJson, 0666)
+	err = os.WriteFile(r.filename, dataJSON, 0666)
 	if err != nil {
 		return fmt.Errorf("ошибка сохранения - %w", err)
 	}

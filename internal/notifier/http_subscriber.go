@@ -6,23 +6,23 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type HttpClient interface {
+type HTTPClient interface {
 	Post(url string) (*resty.Response, error)
 }
 
-type HttpSubscriber struct {
+type HTTPSubscriber struct {
 	url    string
 	client *resty.Client
 }
 
-func NewHTTPSubscriber(url string) *HttpSubscriber {
-	return &HttpSubscriber{
+func NewHTTPSubscriber(url string) *HTTPSubscriber {
+	return &HTTPSubscriber{
 		url:    url,
 		client: resty.New(),
 	}
 }
 
-func (s *HttpSubscriber) OnMetricsSaved(event MetricsSavedEvent) error {
+func (s *HTTPSubscriber) OnMetricsSaved(event MetricsSavedEvent) error {
 	response, err := s.client.R().
 		SetHeader("Content-Type", "application/json").
 		SetBody(event).

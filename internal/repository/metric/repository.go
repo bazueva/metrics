@@ -60,9 +60,9 @@ func createClient(logger interfaces.Logger) *resty.Client {
 }
 
 func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
-	updateUrl := fmt.Sprintf("%s/updates/", r.addr)
+	updateURL := fmt.Sprintf("%s/updates/", r.addr)
 
-	metricsJson, err := json.Marshal(metrics)
+	metricsJSON, err := json.Marshal(metrics)
 	if err != nil {
 		return err
 	}
@@ -71,16 +71,16 @@ func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip")
 
-	r.signData(metricsJson, request)
+	r.signData(metricsJSON, request)
 
-	compress, err := compressData(metricsJson)
+	compress, err := compressData(metricsJSON)
 	if err != nil {
 		return err
 	}
 
 	response, err := request.
 		SetBody(compress).
-		Post(updateUrl)
+		Post(updateURL)
 	if err != nil {
 		return err
 	}

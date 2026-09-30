@@ -143,7 +143,7 @@ func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.
 func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 	if request.ContentLength == 0 {
-		h.jsonErrorHandler(writer, fmt.Errorf("Не указана метрика"), http.StatusBadRequest)
+		h.jsonErrorHandler(writer, fmt.Errorf("не указана метрика"), http.StatusBadRequest)
 
 		return
 	}
@@ -163,15 +163,15 @@ func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	resultMetricJson, err := json.Marshal(resultMetric)
+	resultMetricJSON, err := json.Marshal(resultMetric)
 	if err != nil {
-		h.logger.Error("Ошибка json unmarshal", zap.Error(err))
+		h.logger.Error("ошибка json unmarshal", zap.Error(err))
 		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
 	}
 
-	writer.Write(resultMetricJson)
+	writer.Write(resultMetricJSON)
 }
 
 func errorHandler(writer http.ResponseWriter, err error) {
@@ -236,7 +236,7 @@ func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http
 	}
 
 	if len(metrics) == 0 {
-		h.jsonErrorHandler(writer, fmt.Errorf("Не переданы метрики"), http.StatusBadRequest)
+		h.jsonErrorHandler(writer, fmt.Errorf("не переданы метрики"), http.StatusBadRequest)
 
 		return
 	}

@@ -549,7 +549,7 @@ func TestHandler_UpdatesMetricHandler(t *testing.T) {
 			),
 			want: want{
 				code: http.StatusBadRequest,
-				body: `{"error":"Не переданы метрики"}`,
+				body: `{"error":"не переданы метрики"}`,
 			},
 			setup: func(storage *mocks.MockStorage, notifier *mocks.MockNotifier) {},
 		},
