@@ -12,6 +12,7 @@ import (
 
 	dbpkg "github.com/bazueva/metrics/db"
 	serverMiddleware "github.com/bazueva/metrics/internal/middleware/server"
+	"github.com/bazueva/metrics/internal/notifier"
 	"github.com/bazueva/metrics/internal/repository/db/metrics"
 	"github.com/bazueva/metrics/internal/repository/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -80,8 +81,32 @@ func main() {
 	cfg.logger.Info("Программа завершена")
 }
 
+func createNotifier(cfg config) *notifier.Notifier {
+	subscribers := make([]notifier.Subscriber, 0, 2)
+
+	if cfg.AuditFile != "" {
+		subscribers = append(
+			subscribers,
+			notifier.NewFileSubscriber(cfg.AuditFile),
+		)
+	}
+
+	if cfg.AuditURL != "" {
+		subscribers = append(
+			subscribers,
+			notifier.NewHTTPSubscriber(cfg.AuditURL),
+		)
+	}
+
+	auditNotifier := notifier.NewNotifier(subscribers...)
+
+	return auditNotifier
+}
+
 func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage, db *sql.DB) {
-	httpHandler := handler.NewHandler(memStorage, cfg.logger, db)
+	notifier := createNotifier(cfg)
+
+	httpHandler := handler.NewHandler(memStorage, cfg.logger, db, notifier)
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))

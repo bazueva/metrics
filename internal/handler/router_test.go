@@ -11,8 +11,10 @@ import (
 
 	"github.com/bazueva/metrics/internal/handler/mocks"
 	models "github.com/bazueva/metrics/internal/model"
+	notifierPkg "github.com/bazueva/metrics/internal/notifier"
 	memStorage "github.com/bazueva/metrics/internal/storage"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -118,7 +120,7 @@ func TestHandler_UpdateHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage, nil, nil)
+			handler := NewHandler(tt.memStorage, nil, nil, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.UpdateHandler(recorder, tt.request)
@@ -199,7 +201,7 @@ func TestHandler_GetMetricHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage, nil, nil)
+			handler := NewHandler(tt.memStorage, nil, nil, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.GetMetricHandler(recorder, tt.request)
@@ -266,7 +268,7 @@ func TestHandler_GetAllMetricsHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(tt.memStorage, nil, nil)
+			handler := NewHandler(tt.memStorage, nil, nil, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.GetAllMetricsHandler(recorder, tt.request)
@@ -339,7 +341,7 @@ func TestHandler_UpdateMetricHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger, _ := zap.NewDevelopment()
 
-			handler := NewHandler(tt.memStorage, logger, nil)
+			handler := NewHandler(tt.memStorage, logger, nil, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.UpdateMetricHandler(recorder, tt.request)
@@ -422,7 +424,7 @@ func TestHandler_ValueMetricHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger, _ := zap.NewDevelopment()
 
-			handler := NewHandler(tt.memStorage, logger, nil)
+			handler := NewHandler(tt.memStorage, logger, nil, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.ValueMetricHandler(recorder, tt.request)
@@ -479,7 +481,7 @@ func TestHandler_PingHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := NewHandler(nil, nil, tt.db)
+			handler := NewHandler(nil, nil, tt.db, nil)
 			recorder := httptest.NewRecorder()
 
 			handler.PingHandler(recorder, httptest.NewRequest("GET", "/ping", nil))
@@ -502,61 +504,78 @@ func TestHandler_UpdatesMetricHandler(t *testing.T) {
 		body string
 	}
 
-	type test struct {
-		name       string
-		request    *http.Request
-		memStorage Storage
-		want       want
-	}
-
-	tests := []test{
+	tests := []struct {
+		name    string
+		request *http.Request
+		want    want
+		setup   func(*mocks.MockStorage, *mocks.MockNotifier)
+	}{
 		{
-			name:       "invalid json",
-			request:    httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`"test"`))),
-			memStorage: nil,
+			name: "invalid json",
+			request: httptest.NewRequest(
+				http.MethodPost,
+				"http://test/metricType/",
+				bytes.NewReader([]byte(`"test"`)),
+			),
 			want: want{
 				code: http.StatusBadRequest,
 				body: `{"error":"json: cannot unmarshal string into Go value of type []models.Metrics"}`,
 			},
+			setup: func(storage *mocks.MockStorage, notifier *mocks.MockNotifier) {},
 		},
 		{
-			name:    "error storage updates metric",
-			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`[{"test":"1"}]`))),
-			memStorage: func() Storage {
-				mock := new(MockStorage)
-				mock.err = fmt.Errorf("ошибка")
-
-				return mock
-			}(),
+			name: "error storage updates metric",
+			request: httptest.NewRequest(
+				http.MethodPost,
+				"http://test/metricType/",
+				bytes.NewReader([]byte(`[{"test":"1"}]`)),
+			),
 			want: want{
 				code: http.StatusInternalServerError,
 				body: `{"error":"Internal Server Error"}`,
 			},
-		},
-		{
-			name:    "empty metrics",
-			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`[]`))),
-			memStorage: func() Storage {
-				mock := new(MockStorage)
-
-				return mock
-			}(),
-			want: want{
-				code: http.StatusBadRequest,
-				body: `{"error":"Не переданы метрики"}`,
+			setup: func(storage *mocks.MockStorage, notifier *mocks.MockNotifier) {
+				storage.EXPECT().
+					UpdatesMetrics(mock.Anything).
+					Return(fmt.Errorf("ошибка"))
 			},
 		},
 		{
-			name:    "success",
-			request: httptest.NewRequest(http.MethodPost, "http://test/metricType/", bytes.NewReader([]byte(`[{"test":"1"}]`))),
-			memStorage: func() Storage {
-				mock := new(MockStorage)
-
-				return mock
-			}(),
+			name: "empty metrics",
+			request: httptest.NewRequest(
+				http.MethodPost,
+				"http://test/metricType/",
+				bytes.NewReader([]byte(`[]`)),
+			),
+			want: want{
+				code: http.StatusBadRequest,
+				body: `{"error":"не переданы метрики"}`,
+			},
+			setup: func(storage *mocks.MockStorage, notifier *mocks.MockNotifier) {},
+		},
+		{
+			name: "success",
+			request: httptest.NewRequest(
+				http.MethodPost,
+				"http://test/metricType/",
+				bytes.NewReader([]byte(`[{"test":"1"}]`)),
+			),
 			want: want{
 				code: http.StatusOK,
-				body: ``,
+			},
+			setup: func(storage *mocks.MockStorage, notifier *mocks.MockNotifier) {
+				storage.EXPECT().
+					UpdatesMetrics(mock.Anything).
+					Return(nil)
+
+				notifier.EXPECT().
+					Notify(mock.MatchedBy(func(event notifierPkg.MetricsSavedEvent) bool {
+						return len(event.Metrics) == 1 &&
+							event.Metrics[0] == "" &&
+							event.IPAddress != "" &&
+							event.TS > 0
+					})).
+					Return(nil)
 			},
 		},
 	}
@@ -565,7 +584,12 @@ func TestHandler_UpdatesMetricHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger, _ := zap.NewDevelopment()
 
-			handler := NewHandler(tt.memStorage, logger, nil)
+			storage := mocks.NewMockStorage(t)
+			auditNotifier := mocks.NewMockNotifier(t)
+
+			tt.setup(storage, auditNotifier)
+
+			handler := NewHandler(storage, logger, nil, auditNotifier)
 			recorder := httptest.NewRecorder()
 
 			handler.UpdatesMetricHandler(recorder, tt.request)
@@ -581,7 +605,6 @@ func TestHandler_UpdatesMetricHandler(t *testing.T) {
 			if tt.want.body != "" || string(body) != "" {
 				assert.JSONEq(t, tt.want.body, string(body))
 			}
-
 		})
 	}
 }
