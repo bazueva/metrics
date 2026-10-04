@@ -9,10 +9,12 @@ import (
 	models "github.com/bazueva/metrics/internal/model"
 )
 
+// Repository реализует файловое хранилище метрик.
 type Repository struct {
 	filename string
 }
 
+// Save сохраняет метрики в файл в формате JSON.
 func (r *Repository) Save(ctx context.Context, data []models.Metrics) error {
 	if len(data) == 0 {
 		return nil
@@ -31,6 +33,7 @@ func (r *Repository) Save(ctx context.Context, data []models.Metrics) error {
 	return nil
 }
 
+// Load загружает метрики из файла.
 func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
 	data, err := os.ReadFile(r.filename)
 	if err != nil {
@@ -50,6 +53,7 @@ func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
 	return result, nil
 }
 
+// NewRepository создаёт новый файловый репозиторий для хранения метрик.
 func NewRepository(filename string) *Repository {
 	return &Repository{
 		filename: filename,

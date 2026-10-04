@@ -6,15 +6,14 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type HTTPClient interface {
-	Post(url string) (*resty.Response, error)
-}
-
+// HTTPSubscriber отправляет события аудита на удалённый HTTP-сервер.
 type HTTPSubscriber struct {
 	url    string
 	client *resty.Client
 }
 
+// NewHTTPSubscriber создаёт подписчика, отправляющего события аудита
+// по указанному URL.
 func NewHTTPSubscriber(url string) *HTTPSubscriber {
 	return &HTTPSubscriber{
 		url:    url,
@@ -22,6 +21,7 @@ func NewHTTPSubscriber(url string) *HTTPSubscriber {
 	}
 }
 
+// OnMetricsSaved отправляет событие сохранения метрик на сервер аудита.
 func (s *HTTPSubscriber) OnMetricsSaved(event MetricsSavedEvent) error {
 	response, err := s.client.R().
 		SetHeader("Content-Type", "application/json").

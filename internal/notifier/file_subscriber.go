@@ -6,16 +6,20 @@ import (
 	"os"
 )
 
+// FileSubscriber сохраняет события аудита о сохранении метрик в файл.
 type FileSubscriber struct {
 	filePath string
 }
 
+// NewFileSubscriber создаёт подписчика, записывающего события аудита
+// в файл по указанному пути.
 func NewFileSubscriber(filePath string) *FileSubscriber {
 	return &FileSubscriber{
 		filePath: filePath,
 	}
 }
 
+// OnMetricsSaved записывает событие сохранения метрик в файл аудита.
 func (s *FileSubscriber) OnMetricsSaved(event MetricsSavedEvent) error {
 	data, err := json.Marshal(event)
 	if err != nil {

@@ -21,6 +21,7 @@ type repository struct {
 	secretKey string
 }
 
+// NewRepository создаёт новый репозиторий для отправки метрик на сервер.
 func NewRepository(addr string, secretKey string, logger interfaces.Logger) (*repository, error) {
 	if addr == "" {
 		return nil, fmt.Errorf("не указан адрес сервера")
@@ -59,6 +60,7 @@ func createClient(logger interfaces.Logger) *resty.Client {
 		)
 }
 
+// SendBatchMetric отправляет пакет метрик на сервер в формате JSON с использованием gzip-сжатия.
 func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
 	updateURL := fmt.Sprintf("%s/updates/", r.addr)
 

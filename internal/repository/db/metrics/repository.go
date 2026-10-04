@@ -17,11 +17,13 @@ const (
 	defaultTimeout = 1 * time.Second
 )
 
+// Query определяет методы для выполнения SQL-запросов к хранилищу метрик.
 type Query interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
+// Repository реализует работу с метриками в базе данных.
 type Repository struct {
 	db              Query
 	errorClassifier *dbPkg.PostgresErrorClassifier
@@ -30,6 +32,8 @@ type Repository struct {
 
 const chunkSize = 100
 
+// Save сохраняет метрики в базе данных.
+// Метрики сохраняются пакетами с обновлением существующих записей.
 func (r *Repository) Save(ctx context.Context, data []models.Metrics) error {
 	if len(data) == 0 {
 		return nil
@@ -189,6 +193,7 @@ func (r *Repository) queryWithRetry(
 	return fmt.Errorf("unexpected error")
 }
 
+// Load загружает все сохранённые метрики из базы данных.
 func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
 	result := make([]models.Metrics, 0)
 
@@ -214,6 +219,7 @@ func (r *Repository) Load(ctx context.Context) ([]models.Metrics, error) {
 	return result, nil
 }
 
+// NewRepository создаёт новый репозиторий для работы с метриками.
 func NewRepository(db Query, logger interfaces.Logger) *Repository {
 	return &Repository{
 		db:              db,
