@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bazueva/metrics/internal/interfaces"
 	models "github.com/bazueva/metrics/internal/model"
 	dbPkg "github.com/bazueva/metrics/internal/repository/db"
-	"github.com/samber/lo"
 	"go.uber.org/zap"
 )
 
@@ -28,31 +28,53 @@ type Repository struct {
 	logger          interfaces.Logger
 }
 
+const chunkSize = 100
+
 func (r *Repository) Save(ctx context.Context, data []models.Metrics) error {
 	if len(data) == 0 {
 		return nil
 	}
 
-	chunks := lo.Chunk(data, 100)
-	for _, chunk := range chunks {
+	for start := 0; start < len(data); start += chunkSize {
+		end := min(start+chunkSize, len(data))
+		chunk := data[start:end]
+
 		args := make([]interface{}, 0, len(chunk)*4)
-		sql := `INSERT INTO metrics(metric_id, type, delta, value) VALUES `
+
+		var queryBuilder strings.Builder
+		queryBuilder.WriteString(
+			`INSERT INTO metrics(metric_id, type, delta, value) VALUES `,
+		)
+
 		for i, metric := range chunk {
 			args = append(args, metric.ID, metric.MType, metric.Delta, metric.Value)
-			sql += fmt.Sprintf("($%d, $%d, $%d, $%d)", i*4+1, i*4+2, i*4+3, i*4+4)
+
+			fmt.Fprintf(
+				&queryBuilder,
+				"($%d, $%d, $%d, $%d)",
+				i*4+1,
+				i*4+2,
+				i*4+3,
+				i*4+4,
+			)
 
 			if i != len(chunk)-1 {
-				sql += ","
+				queryBuilder.WriteString(",")
 			}
 		}
 
-		sql += ` ON CONFLICT (metric_id) DO UPDATE 
+		queryBuilder.WriteString(` ON CONFLICT (metric_id) DO UPDATE 
 		SET type = EXCLUDED.type, 
 			delta = EXCLUDED.delta, 
 			value = EXCLUDED.value,
-			updated_at = CURRENT_TIMESTAMP`
+			updated_at = CURRENT_TIMESTAMP`)
 
-		_, err := r.executeWithRetry(ctx, "insert into metrics", sql, args...)
+		_, err := r.executeWithRetry(
+			ctx,
+			"insert into metrics",
+			queryBuilder.String(),
+			args...,
+		)
 		if err != nil {
 			return err
 		}
@@ -137,7 +159,11 @@ func (r *Repository) queryWithRetry(
 			}
 			defer rows.Close()
 
-			return scanFn(rows)
+			if err = scanFn(rows); err != nil {
+				return err
+			}
+
+			return rows.Err()
 		}()
 
 		if err == nil {

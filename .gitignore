@@ -24,3 +24,6 @@ vendor/
 .idea
 .vscode
 .DS_Store
+
+coverage.out
+coverage-filtered.out

@@ -206,6 +206,10 @@ func (ms *MemStorage) Save() error {
 		data = append(data, metric)
 	}
 
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].ID < data[j].ID
+	})
+
 	return ms.repository.Save(context.Background(), data)
 }
 
