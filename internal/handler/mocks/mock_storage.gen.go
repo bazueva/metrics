@@ -5,7 +5,7 @@
 package mocks
 
 import (
-	"github.com/bazueva/metrics/internal/model"
+	models "github.com/bazueva/metrics/internal/model"
 	mock "github.com/stretchr/testify/mock"
 )
 
