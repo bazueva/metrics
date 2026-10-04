@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	_ "net/http/pprof"
+
 	dbpkg "github.com/bazueva/metrics/db"
 	serverMiddleware "github.com/bazueva/metrics/internal/middleware/server"
 	"github.com/bazueva/metrics/internal/notifier"
@@ -37,11 +39,37 @@ func main() {
 
 	defer cfg.logger.Sync()
 
+	go func() {
+		if err := http.ListenAndServe(":6060", nil); err != nil {
+			cfg.logger.Error("Ошибка pprof сервера", zap.Error(err))
+		}
+	}()
+
 	db, err := sql.Open("pgx", cfg.DatabaseDSN)
 	if err != nil {
 		panic(err)
 	}
+	db.SetMaxIdleConns(20)
 	defer db.Close()
+
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			stats := db.Stats()
+
+			log.Printf(
+				"DB STATS: open=%d in_use=%d idle=%d wait_count=%d wait_duration=%s max_open=%d",
+				stats.OpenConnections,
+				stats.InUse,
+				stats.Idle,
+				stats.WaitCount,
+				stats.WaitDuration,
+				stats.MaxOpenConnections,
+			)
+		}
+	}()
 
 	if cfg.DatabaseDSN != "" {
 		if err := dbpkg.RunMigrations(db); err != nil {
