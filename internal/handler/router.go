@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	models "github.com/bazueva/metrics/internal/model"
+	"github.com/bazueva/metrics/internal/notifier"
 	memStorage "github.com/bazueva/metrics/internal/storage"
+	"github.com/samber/lo"
 	"go.uber.org/zap"
 )
 
@@ -25,17 +29,28 @@ type Database interface {
 	Ping() error
 }
 
-type Handler struct {
-	storage Storage
-	logger  *zap.Logger
-	db      Database
+type Notifier interface {
+	Notify(event notifier.MetricsSavedEvent) error
 }
 
-func NewHandler(memStorage Storage, logger *zap.Logger, db Database) *Handler {
+type Handler struct {
+	storage  Storage
+	logger   *zap.Logger
+	db       Database
+	notifier Notifier
+}
+
+func NewHandler(
+	memStorage Storage,
+	logger *zap.Logger,
+	db Database,
+	notifier Notifier,
+) *Handler {
 	return &Handler{
-		storage: memStorage,
-		logger:  logger,
-		db:      db,
+		storage:  memStorage,
+		logger:   logger,
+		db:       db,
+		notifier: notifier,
 	}
 }
 
@@ -84,18 +99,14 @@ func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Req
 func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	result := make([]byte, 0)
-
 	for _, metric := range h.storage.GetAllMetrics() {
 		switch metric.MType {
 		case models.Counter:
-			result = append(result, []byte(fmt.Sprintf("%s - %d <br>", metric.ID, *metric.Delta))...)
+			_, _ = fmt.Fprintf(writer, "%s - %d <br>", metric.ID, *metric.Delta)
 		case models.Gauge:
-			result = append(result, []byte(fmt.Sprintf("%s - %f <br>", metric.ID, *metric.Value))...)
+			_, _ = fmt.Fprintf(writer, "%s - %f <br>", metric.ID, *metric.Value)
 		}
 	}
-
-	writer.Write(result)
 }
 
 func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.Request) {
@@ -128,7 +139,7 @@ func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.
 func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 	if request.ContentLength == 0 {
-		h.jsonErrorHandler(writer, fmt.Errorf("Не указана метрика"), http.StatusBadRequest)
+		h.jsonErrorHandler(writer, fmt.Errorf("не указана метрика"), http.StatusBadRequest)
 
 		return
 	}
@@ -148,15 +159,15 @@ func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	resultMetricJson, err := json.Marshal(resultMetric)
+	resultMetricJSON, err := json.Marshal(resultMetric)
 	if err != nil {
-		h.logger.Error("Ошибка json unmarshal", zap.Error(err))
+		h.logger.Error("ошибка json unmarshal", zap.Error(err))
 		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
 	}
 
-	writer.Write(resultMetricJson)
+	writer.Write(resultMetricJSON)
 }
 
 func errorHandler(writer http.ResponseWriter, err error) {
@@ -221,7 +232,7 @@ func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http
 	}
 
 	if len(metrics) == 0 {
-		h.jsonErrorHandler(writer, fmt.Errorf("Не переданы метрики"), http.StatusBadRequest)
+		h.jsonErrorHandler(writer, fmt.Errorf("не переданы метрики"), http.StatusBadRequest)
 
 		return
 	}
@@ -233,5 +244,26 @@ func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http
 		return
 	}
 
+	event := notifier.MetricsSavedEvent{
+		TS: time.Now().Unix(),
+		Metrics: lo.Map(metrics, func(metric models.Metrics, _ int) string {
+			return metric.ID
+		}),
+		IPAddress: getIPAddress(request),
+	}
+
+	if err := h.notifier.Notify(event); err != nil {
+		h.logger.Error("ошибка отправки сообщения аудита", zap.Error(err))
+	}
+
 	writer.WriteHeader(http.StatusOK)
+}
+
+func getIPAddress(request *http.Request) string {
+	host, _, err := net.SplitHostPort(request.RemoteAddr)
+	if err != nil {
+		return request.RemoteAddr
+	}
+
+	return host
 }

@@ -1,0 +1,12 @@
+[
+  {"id":"requests_total","type":"counter","delta":10},
+  {"id":"errors_total","type":"counter","delta":2},
+  {"id":"processed_total","type":"counter","delta":25},
+  {"id":"temperature","type":"gauge","value":23.7},
+  {"id":"cpu_usage","type":"gauge","value":67.4},
+  {"id":"memory_usage","type":"gauge","value":512.8},
+  {"id":"response_time","type":"gauge","value":125.3},
+  {"id":"active_users","type":"gauge","value":42},
+  {"id":"queue_size","type":"gauge","value":17},
+  {"id":"load_average","type":"gauge","value":1.85}
+]

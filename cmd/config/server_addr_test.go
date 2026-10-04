@@ -20,19 +20,19 @@ func TestServerAddr_Set(t *testing.T) {
 			name: "empty addr",
 			addr: "",
 			want: ServerAddr{},
-			err:  fmt.Errorf("Неверный формат"),
+			err:  fmt.Errorf("неверный формат"),
 		},
 		{
 			name: "without port and host",
 			addr: ":",
 			want: ServerAddr{},
-			err:  fmt.Errorf("Неверный порт - strconv.Atoi: parsing \"\": invalid syntax"),
+			err:  fmt.Errorf("неверный порт - strconv.Atoi: parsing \"\": invalid syntax"),
 		},
 		{
 			name: "port not number",
 			addr: ":test",
 			want: ServerAddr{},
-			err:  fmt.Errorf("Неверный порт - strconv.Atoi: parsing \"test\": invalid syntax"),
+			err:  fmt.Errorf("неверный порт - strconv.Atoi: parsing \"test\": invalid syntax"),
 		},
 		{
 			name: "without host",
