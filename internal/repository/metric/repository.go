@@ -21,9 +21,10 @@ type repository struct {
 	secretKey string
 }
 
+// NewRepository создаёт новый репозиторий для отправки метрик на сервер.
 func NewRepository(addr string, secretKey string, logger interfaces.Logger) (*repository, error) {
 	if addr == "" {
-		return nil, fmt.Errorf("Не указан адрес сервера")
+		return nil, fmt.Errorf("не указан адрес сервера")
 	}
 
 	return &repository{
@@ -59,10 +60,11 @@ func createClient(logger interfaces.Logger) *resty.Client {
 		)
 }
 
+// SendBatchMetric отправляет пакет метрик на сервер в формате JSON с использованием gzip-сжатия.
 func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
-	updateUrl := fmt.Sprintf("%s/updates/", r.addr)
+	updateURL := fmt.Sprintf("%s/updates/", r.addr)
 
-	metricsJson, err := json.Marshal(metrics)
+	metricsJSON, err := json.Marshal(metrics)
 	if err != nil {
 		return err
 	}
@@ -71,22 +73,22 @@ func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip")
 
-	r.signData(metricsJson, request)
+	r.signData(metricsJSON, request)
 
-	compress, err := compressData(metricsJson)
+	compress, err := compressData(metricsJSON)
 	if err != nil {
 		return err
 	}
 
 	response, err := request.
 		SetBody(compress).
-		Post(updateUrl)
+		Post(updateURL)
 	if err != nil {
 		return err
 	}
 
 	if response.StatusCode() != http.StatusOK {
-		return fmt.Errorf("Ошибка отправки метрик: статус - %d, ответ - %s", response.StatusCode(), response.String())
+		return fmt.Errorf("ошибка отправки метрик: статус - %d, ответ - %s", response.StatusCode(), response.String())
 	}
 
 	return nil
