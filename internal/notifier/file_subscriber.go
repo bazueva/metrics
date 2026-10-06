@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/bazueva/metrics/internal/notifier/events"
 )
 
 // FileSubscriber сохраняет события аудита о сохранении метрик в файл.
@@ -20,7 +22,7 @@ func NewFileSubscriber(filePath string) *FileSubscriber {
 }
 
 // OnMetricsSaved записывает событие сохранения метрик в файл аудита.
-func (s *FileSubscriber) OnMetricsSaved(event MetricsSavedEvent) error {
+func (s *FileSubscriber) OnMetricsSaved(event events.MetricsSavedEvent) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("marshal audit event: %w", err)

@@ -11,7 +11,7 @@ import (
 
 	"github.com/bazueva/metrics/internal/handler/mocks"
 	models "github.com/bazueva/metrics/internal/model"
-	notifierPkg "github.com/bazueva/metrics/internal/notifier"
+	notifierPkg "github.com/bazueva/metrics/internal/notifier/events"
 	memStorage "github.com/bazueva/metrics/internal/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

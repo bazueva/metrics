@@ -11,7 +11,7 @@ import (
 	"time"
 
 	models "github.com/bazueva/metrics/internal/model"
-	"github.com/bazueva/metrics/internal/notifier"
+	"github.com/bazueva/metrics/internal/notifier/events"
 	memStorage "github.com/bazueva/metrics/internal/storage"
 	"github.com/samber/lo"
 	"go.uber.org/zap"
@@ -33,7 +33,7 @@ type Database interface {
 
 // Notifier определяет методы для отправки событий.
 type Notifier interface {
-	Notify(event notifier.MetricsSavedEvent) error
+	Notify(event events.MetricsSavedEvent) error
 }
 
 // Handler обрабатывает HTTP-запросы для работы с метриками.
@@ -256,7 +256,7 @@ func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http
 		return
 	}
 
-	event := notifier.MetricsSavedEvent{
+	event := events.MetricsSavedEvent{
 		TS: time.Now().Unix(),
 		Metrics: lo.Map(metrics, func(metric models.Metrics, _ int) string {
 			return metric.ID

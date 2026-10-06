@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -39,11 +40,13 @@ func main() {
 
 	defer cfg.logger.Sync()
 
-	go func() {
-		if err := http.ListenAndServe(":6060", nil); err != nil {
-			cfg.logger.Error("Ошибка pprof сервера", zap.Error(err))
-		}
-	}()
+	if cfg.PprofPort > 0 {
+		go func() {
+			if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.PprofPort), nil); err != nil {
+				cfg.logger.Error("Ошибка pprof сервера", zap.Error(err))
+			}
+		}()
+	}
 
 	db, err := sql.Open("pgx", cfg.DatabaseDSN)
 	if err != nil {
@@ -51,25 +54,6 @@ func main() {
 	}
 	db.SetMaxIdleConns(20)
 	defer db.Close()
-
-	go func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			stats := db.Stats()
-
-			log.Printf(
-				"DB STATS: open=%d in_use=%d idle=%d wait_count=%d wait_duration=%s max_open=%d",
-				stats.OpenConnections,
-				stats.InUse,
-				stats.Idle,
-				stats.WaitCount,
-				stats.WaitDuration,
-				stats.MaxOpenConnections,
-			)
-		}
-	}()
 
 	if cfg.DatabaseDSN != "" {
 		if err := dbpkg.RunMigrations(db); err != nil {
@@ -122,19 +106,20 @@ func createNotifier(cfg config) *notifier.Notifier {
 	if cfg.AuditURL != "" {
 		subscribers = append(
 			subscribers,
-			notifier.NewHTTPSubscriber(cfg.AuditURL),
+			notifier.NewHTTPSubscriber(cfg.AuditURL, cfg.logger),
 		)
 	}
 
-	auditNotifier := notifier.NewNotifier(subscribers...)
+	auditNotifier := notifier.NewNotifier(subscribers, cfg.logger)
 
 	return auditNotifier
 }
 
 func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage, db *sql.DB) {
-	notifier := createNotifier(cfg)
+	auditNotifier := createNotifier(cfg)
+	auditNotifier.Start()
 
-	httpHandler := handler.NewHandler(memStorage, cfg.logger, db, notifier)
+	httpHandler := handler.NewHandler(memStorage, cfg.logger, db, auditNotifier)
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))
@@ -174,4 +159,6 @@ func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		cfg.logger.Error("Ошибка остановки сервера", zap.Error(err))
 	}
+
+	auditNotifier.Stop()
 }

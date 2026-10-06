@@ -248,10 +248,12 @@ func ExampleHandler_ValueMetricHandler() {
 }
 
 func ExampleHandler_UpdatesMetricHandler() {
+	logger := zap.NewNop()
+
 	memStorage := storage.NewMemStorage(
 		nil,
 		false,
-		zap.NewNop(),
+		logger,
 		0,
 	)
 
@@ -259,7 +261,7 @@ func ExampleHandler_UpdatesMetricHandler() {
 		memStorage,
 		zap.NewNop(),
 		nil,
-		notifier.NewNotifier(),
+		notifier.NewNotifier(nil, logger),
 	)
 
 	router := chi.NewRouter()

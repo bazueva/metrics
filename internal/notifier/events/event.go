@@ -1,4 +1,4 @@
-package notifier
+package events
 
 // MetricsSavedEvent содержит данные о событии сохранения метрик.
 type MetricsSavedEvent struct {

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/bazueva/metrics/internal/notifier/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +16,7 @@ func TestFileSubscriber_OnMetricsSaved(t *testing.T) {
 
 		subscriber := NewFileSubscriber(filePath)
 
-		event := MetricsSavedEvent{
+		event := events.MetricsSavedEvent{
 			TS:        12345678,
 			Metrics:   []string{"Alloc", "Frees"},
 			IPAddress: "192.168.0.42",
@@ -39,13 +40,13 @@ func TestFileSubscriber_OnMetricsSaved(t *testing.T) {
 
 		subscriber := NewFileSubscriber(filePath)
 
-		firstEvent := MetricsSavedEvent{
+		firstEvent := events.MetricsSavedEvent{
 			TS:        1,
 			Metrics:   []string{"Alloc"},
 			IPAddress: "127.0.0.1",
 		}
 
-		secondEvent := MetricsSavedEvent{
+		secondEvent := events.MetricsSavedEvent{
 			TS:        2,
 			Metrics:   []string{"Frees"},
 			IPAddress: "127.0.0.2",
@@ -68,7 +69,7 @@ func TestFileSubscriber_OnMetricsSaved(t *testing.T) {
 	t.Run("возвращает ошибку если путь недоступен", func(t *testing.T) {
 		subscriber := NewFileSubscriber("/directory/does/not/exist/audit.log")
 
-		err := subscriber.OnMetricsSaved(MetricsSavedEvent{
+		err := subscriber.OnMetricsSaved(events.MetricsSavedEvent{
 			TS:        1,
 			Metrics:   []string{"Alloc"},
 			IPAddress: "127.0.0.1",

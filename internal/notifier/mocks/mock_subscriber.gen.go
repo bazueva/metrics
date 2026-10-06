@@ -5,7 +5,7 @@
 package mocks
 
 import (
-	"github.com/bazueva/metrics/internal/notifier"
+	"github.com/bazueva/metrics/internal/notifier/events"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -37,7 +37,7 @@ func (_m *MockSubscriber) EXPECT() *MockSubscriber_Expecter {
 }
 
 // OnMetricsSaved provides a mock function for the type MockSubscriber
-func (_mock *MockSubscriber) OnMetricsSaved(event notifier.MetricsSavedEvent) error {
+func (_mock *MockSubscriber) OnMetricsSaved(event events.MetricsSavedEvent) error {
 	ret := _mock.Called(event)
 
 	if len(ret) == 0 {
@@ -45,7 +45,7 @@ func (_mock *MockSubscriber) OnMetricsSaved(event notifier.MetricsSavedEvent) er
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(notifier.MetricsSavedEvent) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(events.MetricsSavedEvent) error); ok {
 		r0 = returnFunc(event)
 	} else {
 		r0 = ret.Error(0)
@@ -59,16 +59,16 @@ type MockSubscriber_OnMetricsSaved_Call struct {
 }
 
 // OnMetricsSaved is a helper method to define mock.On call
-//   - event notifier.MetricsSavedEvent
+//   - event events.MetricsSavedEvent
 func (_e *MockSubscriber_Expecter) OnMetricsSaved(event any) *MockSubscriber_OnMetricsSaved_Call {
 	return &MockSubscriber_OnMetricsSaved_Call{Call: _e.mock.On("OnMetricsSaved", event)}
 }
 
-func (_c *MockSubscriber_OnMetricsSaved_Call) Run(run func(event notifier.MetricsSavedEvent)) *MockSubscriber_OnMetricsSaved_Call {
+func (_c *MockSubscriber_OnMetricsSaved_Call) Run(run func(event events.MetricsSavedEvent)) *MockSubscriber_OnMetricsSaved_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 notifier.MetricsSavedEvent
+		var arg0 events.MetricsSavedEvent
 		if args[0] != nil {
-			arg0 = args[0].(notifier.MetricsSavedEvent)
+			arg0 = args[0].(events.MetricsSavedEvent)
 		}
 		run(
 			arg0,
@@ -82,7 +82,7 @@ func (_c *MockSubscriber_OnMetricsSaved_Call) Return(err error) *MockSubscriber_
 	return _c
 }
 
-func (_c *MockSubscriber_OnMetricsSaved_Call) RunAndReturn(run func(event notifier.MetricsSavedEvent) error) *MockSubscriber_OnMetricsSaved_Call {
+func (_c *MockSubscriber_OnMetricsSaved_Call) RunAndReturn(run func(event events.MetricsSavedEvent) error) *MockSubscriber_OnMetricsSaved_Call {
 	_c.Call.Return(run)
 	return _c
 }

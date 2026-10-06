@@ -5,7 +5,7 @@
 package mocks
 
 import (
-	"github.com/bazueva/metrics/internal/notifier"
+	"github.com/bazueva/metrics/internal/notifier/events"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -37,7 +37,7 @@ func (_m *MockNotifier) EXPECT() *MockNotifier_Expecter {
 }
 
 // Notify provides a mock function for the type MockNotifier
-func (_mock *MockNotifier) Notify(event notifier.MetricsSavedEvent) error {
+func (_mock *MockNotifier) Notify(event events.MetricsSavedEvent) error {
 	ret := _mock.Called(event)
 
 	if len(ret) == 0 {
@@ -45,7 +45,7 @@ func (_mock *MockNotifier) Notify(event notifier.MetricsSavedEvent) error {
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(notifier.MetricsSavedEvent) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(events.MetricsSavedEvent) error); ok {
 		r0 = returnFunc(event)
 	} else {
 		r0 = ret.Error(0)
@@ -59,16 +59,16 @@ type MockNotifier_Notify_Call struct {
 }
 
 // Notify is a helper method to define mock.On call
-//   - event notifier.MetricsSavedEvent
+//   - event events.MetricsSavedEvent
 func (_e *MockNotifier_Expecter) Notify(event any) *MockNotifier_Notify_Call {
 	return &MockNotifier_Notify_Call{Call: _e.mock.On("Notify", event)}
 }
 
-func (_c *MockNotifier_Notify_Call) Run(run func(event notifier.MetricsSavedEvent)) *MockNotifier_Notify_Call {
+func (_c *MockNotifier_Notify_Call) Run(run func(event events.MetricsSavedEvent)) *MockNotifier_Notify_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 notifier.MetricsSavedEvent
+		var arg0 events.MetricsSavedEvent
 		if args[0] != nil {
-			arg0 = args[0].(notifier.MetricsSavedEvent)
+			arg0 = args[0].(events.MetricsSavedEvent)
 		}
 		run(
 			arg0,
@@ -82,7 +82,7 @@ func (_c *MockNotifier_Notify_Call) Return(err error) *MockNotifier_Notify_Call 
 	return _c
 }
 
-func (_c *MockNotifier_Notify_Call) RunAndReturn(run func(event notifier.MetricsSavedEvent) error) *MockNotifier_Notify_Call {
+func (_c *MockNotifier_Notify_Call) RunAndReturn(run func(event events.MetricsSavedEvent) error) *MockNotifier_Notify_Call {
 	_c.Call.Return(run)
 	return _c
 }
