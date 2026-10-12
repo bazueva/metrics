@@ -19,7 +19,7 @@ func TestRepository_Save(t *testing.T) {
 	t.Run("empty data", func(t *testing.T) {
 		repo := NewRepository(nil, nil)
 
-		assert.Nil(t, repo.Save(nil, nil))
+		assert.Nil(t, repo.Save(t.Context(), nil))
 	})
 
 	t.Run("error repo", func(t *testing.T) {

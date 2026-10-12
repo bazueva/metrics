@@ -5,14 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	models "github.com/bazueva/metrics/internal/model"
+	"github.com/bazueva/metrics/internal/notifier/events"
 	memStorage "github.com/bazueva/metrics/internal/storage"
+	"github.com/samber/lo"
 	"go.uber.org/zap"
 )
 
+// Storage определяет методы для хранения и получения метрик.
 type Storage interface {
 	GetMetric(name string) (models.Metrics, error)
 	GetAllMetrics() []models.Metrics
@@ -21,24 +26,40 @@ type Storage interface {
 	UpdatesMetrics([]models.Metrics) error
 }
 
+// Database определяет методы для работы с базой данных.
 type Database interface {
 	Ping() error
 }
 
-type Handler struct {
-	storage Storage
-	logger  *zap.Logger
-	db      Database
+// Notifier определяет методы для отправки событий.
+type Notifier interface {
+	Notify(event events.MetricsSavedEvent) error
 }
 
-func NewHandler(memStorage Storage, logger *zap.Logger, db Database) *Handler {
+// Handler обрабатывает HTTP-запросы для работы с метриками.
+type Handler struct {
+	storage  Storage
+	logger   *zap.Logger
+	db       Database
+	notifier Notifier
+}
+
+// NewHandler создаёт новый Handler.
+func NewHandler(
+	memStorage Storage,
+	logger *zap.Logger,
+	db Database,
+	notifier Notifier,
+) *Handler {
 	return &Handler{
-		storage: memStorage,
-		logger:  logger,
-		db:      db,
+		storage:  memStorage,
+		logger:   logger,
+		db:       db,
+		notifier: notifier,
 	}
 }
 
+// UpdateHandler обрабатывает обновление метрики, переданной в параметрах URL.
 func (h *Handler) UpdateHandler(w http.ResponseWriter, request *http.Request) {
 	metric, err := h.storage.CreateMetric(
 		request.PathValue("metricType"),
@@ -61,6 +82,7 @@ func (h *Handler) UpdateHandler(w http.ResponseWriter, request *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// GetMetricHandler возвращает значение запрошенной метрики.
 func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	result, err := h.storage.GetMetric(request.PathValue("metricName"))
 	if err != nil {
@@ -81,23 +103,21 @@ func (h *Handler) GetMetricHandler(writer http.ResponseWriter, request *http.Req
 	}
 }
 
+// GetAllMetricsHandler возвращает все сохранённые метрики в формате HTML.
 func (h *Handler) GetAllMetricsHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	result := make([]byte, 0)
 
 	for _, metric := range h.storage.GetAllMetrics() {
 		switch metric.MType {
 		case models.Counter:
-			result = append(result, []byte(fmt.Sprintf("%s - %d <br>", metric.ID, *metric.Delta))...)
+			_, _ = fmt.Fprintf(writer, "%s - %d <br>", metric.ID, *metric.Delta)
 		case models.Gauge:
-			result = append(result, []byte(fmt.Sprintf("%s - %f <br>", metric.ID, *metric.Value))...)
+			_, _ = fmt.Fprintf(writer, "%s - %f <br>", metric.ID, *metric.Value)
 		}
 	}
-
-	writer.Write(result)
 }
 
+// UpdateMetricHandler обрабатывает обновление метрики, переданной в формате JSON.
 func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	body, err := io.ReadAll(request.Body)
 	defer request.Body.Close()
@@ -125,10 +145,11 @@ func (h *Handler) UpdateMetricHandler(writer http.ResponseWriter, request *http.
 	writer.WriteHeader(http.StatusOK)
 }
 
+// ValueMetricHandler возвращает запрошенную метрику в формате JSON.
 func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 	if request.ContentLength == 0 {
-		h.jsonErrorHandler(writer, fmt.Errorf("Не указана метрика"), http.StatusBadRequest)
+		h.jsonErrorHandler(writer, fmt.Errorf("не указана метрика"), http.StatusBadRequest)
 
 		return
 	}
@@ -148,15 +169,15 @@ func (h *Handler) ValueMetricHandler(writer http.ResponseWriter, request *http.R
 		return
 	}
 
-	resultMetricJson, err := json.Marshal(resultMetric)
+	resultMetricJSON, err := json.Marshal(resultMetric)
 	if err != nil {
-		h.logger.Error("Ошибка json unmarshal", zap.Error(err))
+		h.logger.Error("ошибка json unmarshal", zap.Error(err))
 		http.Error(writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 
 		return
 	}
 
-	writer.Write(resultMetricJson)
+	writer.Write(resultMetricJSON)
 }
 
 func errorHandler(writer http.ResponseWriter, err error) {
@@ -193,6 +214,7 @@ func (h *Handler) jsonErrorHandler(writer http.ResponseWriter, err error, status
 	})
 }
 
+// PingHandler проверяет соединение с базой данных.
 func (h *Handler) PingHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
@@ -206,6 +228,7 @@ func (h *Handler) PingHandler(writer http.ResponseWriter, request *http.Request)
 	writer.WriteHeader(http.StatusOK)
 }
 
+// UpdatesMetricHandler обрабатывает пакетное обновление метрик, переданных в формате JSON.
 func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 
@@ -221,7 +244,7 @@ func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http
 	}
 
 	if len(metrics) == 0 {
-		h.jsonErrorHandler(writer, fmt.Errorf("Не переданы метрики"), http.StatusBadRequest)
+		h.jsonErrorHandler(writer, fmt.Errorf("не переданы метрики"), http.StatusBadRequest)
 
 		return
 	}
@@ -233,5 +256,26 @@ func (h *Handler) UpdatesMetricHandler(writer http.ResponseWriter, request *http
 		return
 	}
 
+	event := events.MetricsSavedEvent{
+		TS: time.Now().Unix(),
+		Metrics: lo.Map(metrics, func(metric models.Metrics, _ int) string {
+			return metric.ID
+		}),
+		IPAddress: getIPAddress(request),
+	}
+
+	if err := h.notifier.Notify(event); err != nil {
+		h.logger.Error("ошибка отправки сообщения аудита", zap.Error(err))
+	}
+
 	writer.WriteHeader(http.StatusOK)
+}
+
+func getIPAddress(request *http.Request) string {
+	host, _, err := net.SplitHostPort(request.RemoteAddr)
+	if err != nil {
+		return request.RemoteAddr
+	}
+
+	return host
 }

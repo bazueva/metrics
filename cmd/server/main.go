@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -10,8 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	_ "net/http/pprof"
+
 	dbpkg "github.com/bazueva/metrics/db"
 	serverMiddleware "github.com/bazueva/metrics/internal/middleware/server"
+	"github.com/bazueva/metrics/internal/notifier"
 	"github.com/bazueva/metrics/internal/repository/db/metrics"
 	"github.com/bazueva/metrics/internal/repository/file"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -36,10 +40,19 @@ func main() {
 
 	defer cfg.logger.Sync()
 
+	if cfg.PprofPort > 0 {
+		go func() {
+			if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.PprofPort), nil); err != nil {
+				cfg.logger.Error("Ошибка pprof сервера", zap.Error(err))
+			}
+		}()
+	}
+
 	db, err := sql.Open("pgx", cfg.DatabaseDSN)
 	if err != nil {
 		panic(err)
 	}
+	db.SetMaxIdleConns(20)
 	defer db.Close()
 
 	if cfg.DatabaseDSN != "" {
@@ -80,8 +93,33 @@ func main() {
 	cfg.logger.Info("Программа завершена")
 }
 
+func createNotifier(cfg config) *notifier.Notifier {
+	subscribers := make([]notifier.Subscriber, 0, 2)
+
+	if cfg.AuditFile != "" {
+		subscribers = append(
+			subscribers,
+			notifier.NewFileSubscriber(cfg.AuditFile),
+		)
+	}
+
+	if cfg.AuditURL != "" {
+		subscribers = append(
+			subscribers,
+			notifier.NewHTTPSubscriber(cfg.AuditURL, cfg.logger),
+		)
+	}
+
+	auditNotifier := notifier.NewNotifier(subscribers, cfg.logger)
+
+	return auditNotifier
+}
+
 func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage, db *sql.DB) {
-	httpHandler := handler.NewHandler(memStorage, cfg.logger, db)
+	auditNotifier := createNotifier(cfg)
+	auditNotifier.Start()
+
+	httpHandler := handler.NewHandler(memStorage, cfg.logger, db, auditNotifier)
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))
@@ -121,4 +159,6 @@ func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		cfg.logger.Error("Ошибка остановки сервера", zap.Error(err))
 	}
+
+	auditNotifier.Stop()
 }

@@ -22,13 +22,13 @@ func (s *ServerAddr) String() string {
 func (s *ServerAddr) Set(addr string) error {
 	value := strings.Split(addr, ":")
 	if len(value) != 2 {
-		return fmt.Errorf("Неверный формат")
+		return fmt.Errorf("неверный формат")
 	}
 
 	var err error
 	s.Port, err = strconv.Atoi(value[1])
 	if err != nil {
-		return fmt.Errorf("Неверный порт - %s", err.Error())
+		return fmt.Errorf("неверный порт - %s", err.Error())
 	}
 
 	if value[0] != "" {

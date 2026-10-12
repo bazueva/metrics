@@ -15,19 +15,32 @@ import (
 )
 
 var (
-	ErrInvalidMetricType   = errors.New("invalid metric type")
-	ErrInvalidGaugeValue   = errors.New("invalid value for gauge")
+	// ErrInvalidMetricType возвращается при неизвестном типе метрики.
+	ErrInvalidMetricType = errors.New("invalid metric type")
+
+	// ErrInvalidGaugeValue возвращается при некорректном значении gauge-метрики.
+	ErrInvalidGaugeValue = errors.New("invalid value for gauge")
+
+	// ErrInvalidCounterValue возвращается при некорректном значении counter-метрики.
 	ErrInvalidCounterValue = errors.New("invalid value for counter")
-	ErrEmptyMetricName     = errors.New("empty metric name")
-	ErrInvalidMetricValue  = errors.New("empty value for metric")
-	ErrNotFoundMetric      = errors.New("not found")
+
+	// ErrEmptyMetricName возвращается, если имя метрики не указано.
+	ErrEmptyMetricName = errors.New("empty metric name")
+
+	// ErrInvalidMetricValue возвращается при отсутствии значения метрики.
+	ErrInvalidMetricValue = errors.New("empty value for metric")
+
+	// ErrNotFoundMetric возвращается, если метрика не найдена.
+	ErrNotFoundMetric = errors.New("not found")
 )
 
+// Repository определяет методы для сохранения и загрузки метрик.
 type Repository interface {
 	Save(ctx context.Context, data []models.Metrics) error
 	Load(ctx context.Context) ([]models.Metrics, error)
 }
 
+// MemStorage реализует потокобезопасное хранение метрик в памяти.
 type MemStorage struct {
 	metrics       map[string]models.Metrics
 	repository    Repository
@@ -36,6 +49,7 @@ type MemStorage struct {
 	mu            sync.RWMutex
 }
 
+// UpdatesMetrics обновляет набор метрик и сохраняет изменения.
 func (ms *MemStorage) UpdatesMetrics(metrics []models.Metrics) error {
 	for _, metric := range metrics {
 		if err := ms.validateMetric(metric); err != nil {
@@ -52,6 +66,7 @@ func (ms *MemStorage) UpdatesMetrics(metrics []models.Metrics) error {
 	return ms.Save()
 }
 
+// CreateMetric создаёт метрику указанного типа из строкового значения.
 func (ms *MemStorage) CreateMetric(metricType string, name string, value string) (models.Metrics, error) {
 	switch metricType {
 	case models.Gauge:
@@ -81,6 +96,9 @@ func (ms *MemStorage) CreateMetric(metricType string, name string, value string)
 	}
 }
 
+// UpdateMetric обновляет значение метрики в хранилище.
+// Если needSave установлен в true и периодическое сохранение отключено,
+// изменения сохраняются в репозитории.
 func (ms *MemStorage) UpdateMetric(metric models.Metrics, needSave bool) error {
 	metric.ID = strings.TrimSpace(metric.ID)
 	if err := ms.validateMetric(metric); err != nil {
@@ -106,6 +124,7 @@ func (ms *MemStorage) UpdateMetric(metric models.Metrics, needSave bool) error {
 	return nil
 }
 
+// GetAllMetrics возвращает все метрики.
 func (ms *MemStorage) GetAllMetrics() []models.Metrics {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
@@ -122,6 +141,7 @@ func (ms *MemStorage) GetAllMetrics() []models.Metrics {
 	return result
 }
 
+// GetMetric возвращает метрику по её имени.
 func (ms *MemStorage) GetMetric(metricName string) (models.Metrics, error) {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
@@ -172,6 +192,7 @@ func (ms *MemStorage) validateMetric(metric models.Metrics) error {
 	return nil
 }
 
+// Load загружает метрики из репозитория в хранилище.
 func (ms *MemStorage) Load() error {
 	if ms.repository == nil {
 		return nil
@@ -193,6 +214,7 @@ func (ms *MemStorage) Load() error {
 	return nil
 }
 
+// Save сохраняет текущие метрики из хранилища в репозиторий.
 func (ms *MemStorage) Save() error {
 	if ms.repository == nil {
 		return nil
@@ -206,9 +228,15 @@ func (ms *MemStorage) Save() error {
 		data = append(data, metric)
 	}
 
+	sort.Slice(data, func(i, j int) bool {
+		return data[i].ID < data[j].ID
+	})
+
 	return ms.repository.Save(context.Background(), data)
 }
 
+// RunSaver запускает периодическое сохранение метрик.
+// При завершении контекста выполняется последнее сохранение.
 func (ms *MemStorage) RunSaver(ctx context.Context) {
 	interval := ms.storeInterval
 
@@ -238,6 +266,9 @@ func (ms *MemStorage) RunSaver(ctx context.Context) {
 	}()
 }
 
+// NewMemStorage создаёт новое хранилище метрик.
+// Если loadMetrics установлен в true, метрики загружаются из репозитория
+// при создании хранилища.
 func NewMemStorage(repository Repository, loadMetrics bool, logger interfaces.Logger, storeInterval int) *MemStorage {
 	storage := &MemStorage{
 		metrics:       make(map[string]models.Metrics),

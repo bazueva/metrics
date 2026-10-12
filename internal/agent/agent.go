@@ -10,14 +10,19 @@ import (
 	"go.uber.org/zap"
 )
 
+// PollInterval задаёт интервал по умолчанию между сборами метрик в секундах.
 const PollInterval = 2
+
+// ReportInterval задаёт интервал по умолчанию между отправками метрик в секундах.
 const ReportInterval = 10
 
+// Collector определяет методы для сбора runtime- и расширенных метрик.
 type Collector interface {
 	MetricsSnapshot(counter int64) []models.Metrics
 	ExtendedMetricSnapshot() ([]models.Metrics, error)
 }
 
+// SenderRepository определяет метод для пакетной отправки метрик.
 type SenderRepository interface {
 	SendBatchMetric(metrics []models.Metrics) error
 }
@@ -32,6 +37,7 @@ type agent struct {
 	logger interfaces.Logger
 }
 
+// NewAgent создаёт новый агент для сбора и отправки метрик.
 func NewAgent(
 	collector Collector,
 	repository SenderRepository,
@@ -50,6 +56,7 @@ func NewAgent(
 	}
 }
 
+// Run запускает сбор и отправку метрик до завершения переданного контекста.
 func (a *agent) Run(ctx context.Context) {
 	runtimeMetricCh := make(chan models.Metrics, a.rateLimit)
 

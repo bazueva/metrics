@@ -56,7 +56,7 @@ func TestRepository_Save(t *testing.T) {
 				},
 			},
 			checkFile: false,
-			err:       "Ошибка сохранения - open /test/1/rt.log: no such file or directory",
+			err:       "ошибка сохранения - open /test/1/rt.log: no such file or directory",
 			fileName:  "/test/1/rt.log",
 		},
 	}
@@ -65,7 +65,7 @@ func TestRepository_Save(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := NewRepository(tt.fileName)
 
-			err := repo.Save(nil, tt.data)
+			err := repo.Save(t.Context(), tt.data)
 			if err != nil || tt.err != "" {
 				assert.Equal(t, tt.err, err.Error())
 			}
@@ -105,7 +105,7 @@ func TestRepository_LoadFromFile(t *testing.T) {
 			name:     "file not found",
 			data:     nil,
 			fileName: "test/1.log",
-			err:      "Ошибка чтения файла - open test/1.log: no such file or directory",
+			err:      "ошибка чтения файла - open test/1.log: no such file or directory",
 		},
 		{
 			name:           "empty file",
@@ -139,11 +139,12 @@ func TestRepository_LoadFromFile(t *testing.T) {
 
 			if tt.needCreateFile {
 				jsonData, err := json.Marshal(tt.data)
+				assert.Nil(t, err)
 				err = os.WriteFile(tt.fileName, jsonData, 0666)
 				assert.Nil(t, err)
 			}
 
-			data, err := repo.Load(nil)
+			data, err := repo.Load(t.Context())
 			if err != nil || tt.err != "" {
 				assert.Equal(t, tt.err, err.Error())
 
