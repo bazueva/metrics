@@ -1,3 +1,4 @@
+// Package helpers содержит вспомогательные функции
 package helpers
 
 import (

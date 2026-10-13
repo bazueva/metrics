@@ -1,3 +1,4 @@
+// Package interfaces содержит интерфейсы приложения.
 package interfaces
 
 import "go.uber.org/zap"

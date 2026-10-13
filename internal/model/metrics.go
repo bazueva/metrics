@@ -1,3 +1,4 @@
+// Package models содержит модели приложения.
 package models
 
 const (

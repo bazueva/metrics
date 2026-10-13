@@ -1,3 +1,4 @@
+// Package metric реализует HTTP-репозиторий для отправки метрик на сервер.
 package metric
 
 import (

@@ -42,7 +42,7 @@ func main() {
 
 	if cfg.PprofPort > 0 {
 		go func() {
-			if err := http.ListenAndServe(fmt.Sprintf(":%d", cfg.PprofPort), nil); err != nil {
+			if err = http.ListenAndServe(fmt.Sprintf(":%d", cfg.PprofPort), nil); err != nil {
 				cfg.logger.Error("Ошибка pprof сервера", zap.Error(err))
 			}
 		}()
