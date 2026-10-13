@@ -1,3 +1,4 @@
+// Package db содержит функционал для выполнения миграций базы данных PostgreSQL.
 package db
 
 import (

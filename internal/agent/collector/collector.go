@@ -1,3 +1,5 @@
+// Package collector реализует сбор метрик среды выполнения Go,
+// использования памяти и процессора.
 package collector
 
 import (
