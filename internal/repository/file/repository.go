@@ -1,3 +1,4 @@
+// Package file реализует файловое хранилище метрик.
 package file
 
 import (

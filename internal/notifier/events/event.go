@@ -1,3 +1,4 @@
+// Package events определяет структуры событий приложения.
 package events
 
 // MetricsSavedEvent содержит данные о событии сохранения метрик.

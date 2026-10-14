@@ -1,3 +1,4 @@
+// Package metrics реализует хранение метрик в PostgreSQL.
 package metrics
 
 import (
@@ -112,7 +113,7 @@ func (r *Repository) executeWithRetry(
 		}()
 
 		if err == nil {
-			return result, err
+			return result, nil
 		}
 
 		r.logger.Error("Ошибка выполнения запроса",

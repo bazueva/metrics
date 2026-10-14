@@ -1,3 +1,4 @@
+// Package metric реализует HTTP-репозиторий для отправки метрик на сервер.
 package metric
 
 import (
@@ -15,6 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// generate:reset
 type repository struct {
 	addr      string
 	client    *resty.Client
