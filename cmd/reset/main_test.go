@@ -696,7 +696,6 @@ func (m *Example) Reset() {
 	if m == nil {
 		return
 	}
-
 	m.age = 0
 	m.name = ""
 	m.enabled = false
