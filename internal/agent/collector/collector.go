@@ -12,6 +12,7 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
+// generate:reset
 type collector struct {
 	metricsSnapshot []models.Metrics
 }

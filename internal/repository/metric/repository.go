@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// generate:reset
 type repository struct {
 	addr      string
 	client    *resty.Client

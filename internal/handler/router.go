@@ -38,6 +38,7 @@ type Notifier interface {
 	Notify(event events.MetricsSavedEvent) error
 }
 
+// generate:reset
 // Handler обрабатывает HTTP-запросы для работы с метриками.
 type Handler struct {
 	storage  Storage
