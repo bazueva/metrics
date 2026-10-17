@@ -14,20 +14,26 @@ import (
 	_ "net/http/pprof"
 
 	dbpkg "github.com/bazueva/metrics/db"
+	"github.com/bazueva/metrics/internal/buildinfo"
+	"github.com/bazueva/metrics/internal/handler"
+	"github.com/bazueva/metrics/internal/logger"
 	serverMiddleware "github.com/bazueva/metrics/internal/middleware/server"
 	"github.com/bazueva/metrics/internal/notifier"
 	"github.com/bazueva/metrics/internal/repository/db/metrics"
 	"github.com/bazueva/metrics/internal/repository/file"
-	_ "github.com/jackc/pgx/v5/stdlib"
-
-	"github.com/bazueva/metrics/internal/handler"
-	"github.com/bazueva/metrics/internal/logger"
 	"github.com/bazueva/metrics/internal/storage"
 	"github.com/go-chi/chi/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 )
 
+var buildVersion string
+var buildDate string
+var buildCommit string
+
 func main() {
+	buildinfo.Print(buildVersion, buildDate, buildCommit)
+
 	cfg, err := readConfig()
 	if err != nil {
 		panic(err)
