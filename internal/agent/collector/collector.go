@@ -1,3 +1,5 @@
+// Package collector реализует сбор метрик среды выполнения Go,
+// использования памяти и процессора.
 package collector
 
 import (
@@ -10,6 +12,7 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
+// generate:reset
 type collector struct {
 	metricsSnapshot []models.Metrics
 }

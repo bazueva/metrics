@@ -76,9 +76,10 @@ func TestServerResponseGzip(t *testing.T) {
 
 			var body []byte
 			var err error
+			var gzip *gzip2.Reader
 
 			if tt.compress {
-				gzip, err := gzip2.NewReader(responseWriter.Body)
+				gzip, err = gzip2.NewReader(responseWriter.Body)
 				if err != nil {
 					t.Errorf("Ошибка создания reader - %s", err.Error())
 				}

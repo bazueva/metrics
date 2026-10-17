@@ -10,11 +10,18 @@ import (
 
 	"github.com/bazueva/metrics/internal/agent"
 	"github.com/bazueva/metrics/internal/agent/collector"
+	"github.com/bazueva/metrics/internal/buildinfo"
 	"github.com/bazueva/metrics/internal/repository/metric"
 	"go.uber.org/zap"
 )
 
+var buildVersion string
+var buildDate string
+var buildCommit string
+
 func main() {
+	buildinfo.Print(buildVersion, buildDate, buildCommit)
+
 	agentConfig, err := readConfig()
 	if err != nil {
 		panic(err)
