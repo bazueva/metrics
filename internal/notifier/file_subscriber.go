@@ -1,3 +1,4 @@
+// Package notifier реализует отправку и сохранение событий аудита.
 package notifier
 
 import (

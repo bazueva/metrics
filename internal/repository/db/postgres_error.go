@@ -1,3 +1,4 @@
+// Package db реализует классификацию ошибок PostgreSQL.
 package db
 
 import (

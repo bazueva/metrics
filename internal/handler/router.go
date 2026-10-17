@@ -1,3 +1,5 @@
+// Package handler реализует HTTP-обработчики для управления метриками,
+// проверки соединения с базой данных и отправки событий аудита.
 package handler
 
 import (
@@ -36,6 +38,7 @@ type Notifier interface {
 	Notify(event events.MetricsSavedEvent) error
 }
 
+// generate:reset
 // Handler обрабатывает HTTP-запросы для работы с метриками.
 type Handler struct {
 	storage  Storage

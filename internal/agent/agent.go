@@ -1,3 +1,4 @@
+// Package agent содержит функционал агента.
 package agent
 
 import (
