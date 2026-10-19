@@ -23,3 +23,7 @@ packages:
     config:
       all: true
       recursive: true
+  github.com/bazueva/metrics/internal/pool:
+    config:
+      all: true
+      recursive: true

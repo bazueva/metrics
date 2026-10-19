@@ -1,3 +1,4 @@
+// Package server реализует HTTP-middleware для проверки подписи запросов.
 package server
 
 import (
