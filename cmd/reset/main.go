@@ -16,21 +16,36 @@ import (
 )
 
 const templateReset = `
-func (m *{{.Name}}) Reset() {
-	if m == nil {
-		return
-	}
-{{- range fields .}}
+func (m *{{.Spec.Name}}) Reset() {
+    if m == nil {
+        return
+    }
+{{- range fields .Spec}}
 {{- $field := .}}
 {{- range fieldNames .}}
-{{- $code := resetField . $field.Type}}
+{{- $code := resetField . $field.Type $.Info}}
 {{- if $code}}
-	{{$code}}
+    {{$code}}
 {{- end}}
 {{- end}}
 {{- end}}
 }
 `
+
+var resetTemplate = template.Must(
+	template.New("reset").
+		Funcs(template.FuncMap{
+			"fields":     fields,
+			"fieldNames": fieldNames,
+			"resetField": resetField,
+		}).
+		Parse(templateReset),
+)
+
+type resetTemplateData struct {
+	Spec *ast.TypeSpec
+	Info *types.Info
+}
 
 func main() {
 	cfg := &packages.Config{
@@ -131,20 +146,10 @@ func main() {
 }
 
 func generateReset(spec *ast.TypeSpec, info *types.Info, buf *bytes.Buffer) error {
-	t, err := template.New("list").
-		Funcs(template.FuncMap{
-			"fields":     fields,
-			"fieldNames": fieldNames,
-			"resetField": func(name string, expr ast.Expr) string {
-				return resetField(name, expr, info)
-			},
-		}).
-		Parse(templateReset)
-	if err != nil {
-		return err
-	}
-
-	return t.Execute(buf, spec)
+	return resetTemplate.Execute(buf, resetTemplateData{
+		Spec: spec,
+		Info: info,
+	})
 }
 
 func fields(spec *ast.TypeSpec) []*ast.Field {
