@@ -24,6 +24,7 @@ type config struct {
 	AuditFile           string               `env:"AUDIT_FILE"`
 	AuditURL            string               `env:"AUDIT_URL"`
 	PprofPort           int                  `env:"PPROF_PORT"`
+	CryptoKey           string               `env:"CRYPTO_KEY"`
 
 	logger *zap.Logger
 }
@@ -59,6 +60,7 @@ func parseFlags(config *config) error {
 	serverFlags.StringVar(&config.SecretKey, "k", "", "Ключ для расчета hash")
 	serverFlags.StringVar(&config.AuditFile, "audit-file", "", "Audit file path")
 	serverFlags.StringVar(&config.AuditURL, "audit-url", "", "Audit url")
+	serverFlags.StringVar(&config.CryptoKey, "crypto-key", "", "Файл с приватным ключом")
 	serverFlags.IntVar(&config.PprofPort, "pprof-port", 0, "Pprof port")
 
 	if len(os.Args) > 1 {

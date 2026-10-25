@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"fmt"
 	"log"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/bazueva/metrics/internal/agent"
 	"github.com/bazueva/metrics/internal/agent/collector"
 	"github.com/bazueva/metrics/internal/buildinfo"
+	"github.com/bazueva/metrics/internal/crypto"
 	"github.com/bazueva/metrics/internal/repository/metric"
 	"go.uber.org/zap"
 )
@@ -34,10 +36,20 @@ func main() {
 
 	defer logger.Sync()
 
+	var publicKey *rsa.PublicKey
+
+	if agentConfig.CryptoKey != "" {
+		publicKey, err = crypto.LoadPublicKey(agentConfig.CryptoKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	metricRepository, err := metric.NewRepository(
 		fmt.Sprintf("http://%s", agentConfig.MetricServerAddr.String()),
 		agentConfig.SecretKey,
 		logger,
+		publicKey,
 	)
 	if err != nil {
 		log.Fatal(err)

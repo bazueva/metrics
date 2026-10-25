@@ -27,3 +27,5 @@ vendor/
 
 coverage.out
 coverage-filtered.out
+
+keys/private.pem

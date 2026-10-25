@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"database/sql"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ import (
 
 	dbpkg "github.com/bazueva/metrics/db"
 	"github.com/bazueva/metrics/internal/buildinfo"
+	"github.com/bazueva/metrics/internal/crypto"
 	"github.com/bazueva/metrics/internal/handler"
 	"github.com/bazueva/metrics/internal/logger"
 	serverMiddleware "github.com/bazueva/metrics/internal/middleware/server"
@@ -93,7 +95,16 @@ func main() {
 	)
 	memStorage.RunSaver(ctxWithCancel)
 
-	startServer(ctxWithCancel, cfg, memStorage, db)
+	var privateKey *rsa.PrivateKey
+
+	if cfg.CryptoKey != "" {
+		privateKey, err = crypto.LoadPrivateKey(cfg.CryptoKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	startServer(ctxWithCancel, cfg, memStorage, db, privateKey)
 
 	<-ctxWithCancel.Done()
 	cfg.logger.Info("Программа завершена")
@@ -121,7 +132,13 @@ func createNotifier(cfg config) *notifier.Notifier {
 	return auditNotifier
 }
 
-func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage, db *sql.DB) {
+func startServer(
+	ctx context.Context,
+	cfg config,
+	memStorage *storage.MemStorage,
+	db *sql.DB,
+	privateKey *rsa.PrivateKey,
+) {
 	auditNotifier := createNotifier(cfg)
 	auditNotifier.Start()
 
@@ -129,6 +146,9 @@ func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))
+	if privateKey != nil {
+		router.Use(serverMiddleware.DecryptRequest(privateKey))
+	}
 	router.Use(serverMiddleware.UnpackGzip(cfg.logger))
 	router.Use(serverMiddleware.ResponseGzip())
 	if cfg.SecretKey != "" {

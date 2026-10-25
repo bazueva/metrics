@@ -4,11 +4,13 @@ package metric
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/bazueva/metrics/internal/crypto"
 	"github.com/bazueva/metrics/internal/helpers"
 	"github.com/bazueva/metrics/internal/interfaces"
 	models "github.com/bazueva/metrics/internal/model"
@@ -21,10 +23,16 @@ type repository struct {
 	addr      string
 	client    *resty.Client
 	secretKey string
+	publicKey *rsa.PublicKey
 }
 
 // NewRepository создаёт новый репозиторий для отправки метрик на сервер.
-func NewRepository(addr string, secretKey string, logger interfaces.Logger) (*repository, error) {
+func NewRepository(
+	addr string,
+	secretKey string,
+	logger interfaces.Logger,
+	publicKey *rsa.PublicKey,
+) (*repository, error) {
 	if addr == "" {
 		return nil, fmt.Errorf("не указан адрес сервера")
 	}
@@ -33,6 +41,7 @@ func NewRepository(addr string, secretKey string, logger interfaces.Logger) (*re
 		addr:      addr,
 		client:    createClient(logger),
 		secretKey: secretKey,
+		publicKey: publicKey,
 	}, nil
 }
 
@@ -74,6 +83,9 @@ func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
 	request := r.client.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Content-Encoding", "gzip")
+	if r.publicKey != nil {
+		request.SetHeader("X-Encrypted", "true")
+	}
 
 	r.signData(metricsJSON, request)
 
@@ -82,8 +94,17 @@ func (r *repository) SendBatchMetric(metrics []models.Metrics) error {
 		return err
 	}
 
+	body := compress
+
+	if r.publicKey != nil {
+		body, err = crypto.Encrypt(r.publicKey, compress)
+		if err != nil {
+			return fmt.Errorf("encrypt metrics: %w", err)
+		}
+	}
+
 	response, err := request.
-		SetBody(compress).
+		SetBody(body).
 		Post(updateURL)
 	if err != nil {
 		return err
