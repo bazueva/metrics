@@ -43,6 +43,7 @@ func TestDecryptRequest(t *testing.T) {
 			"/updates/",
 			bytes.NewReader(encrypted),
 		)
+		request.Header.Set("X-Encrypted", "true")
 
 		recorder := httptest.NewRecorder()
 
@@ -74,6 +75,7 @@ func TestDecryptRequest(t *testing.T) {
 			"/updates/",
 			bytes.NewReader(encrypted),
 		)
+		request.Header.Set("X-Encrypted", "true")
 
 		recorder := httptest.NewRecorder()
 
@@ -101,10 +103,41 @@ func TestDecryptRequest(t *testing.T) {
 			"/updates/",
 			bytes.NewReader(original),
 		)
+		request.Header.Set("X-Encrypted", "true")
 
 		recorder := httptest.NewRecorder()
 
 		DecryptRequest(nil)(handler).ServeHTTP(recorder, request)
+
+		assert.Equal(t, http.StatusOK, recorder.Code)
+	})
+
+	t.Run("without X-Encrypted header", func(t *testing.T) {
+		t.Parallel()
+
+		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+
+		original := []byte(`{"id":"metric1","type":"gauge","value":12.5}`)
+
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+
+			assert.Equal(t, original, body)
+
+			w.WriteHeader(http.StatusOK)
+		})
+
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/updates/",
+			bytes.NewReader(original),
+		)
+
+		recorder := httptest.NewRecorder()
+
+		DecryptRequest(privateKey)(handler).ServeHTTP(recorder, request)
 
 		assert.Equal(t, http.StatusOK, recorder.Code)
 	})

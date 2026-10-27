@@ -2,6 +2,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -37,4 +38,14 @@ func (s *ServerAddr) Set(addr string) error {
 	}
 
 	return nil
+}
+
+func (s *ServerAddr) UnmarshalJSON(data []byte) error {
+	var addr string
+
+	if err := json.Unmarshal(data, &addr); err != nil {
+		return err
+	}
+
+	return s.Set(addr)
 }
