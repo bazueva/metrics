@@ -47,6 +47,7 @@ func NewRepository(
 
 func createClient(logger interfaces.Logger) *resty.Client {
 	return resty.New().
+		SetTimeout(10 * time.Second).
 		SetRetryCount(3).
 		SetRetryAfter(func(client *resty.Client, response *resty.Response) (time.Duration, error) {
 			attempt := response.Request.Attempt

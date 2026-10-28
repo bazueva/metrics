@@ -238,34 +238,33 @@ func (ms *MemStorage) Save() error {
 }
 
 // RunSaver запускает периодическое сохранение метрик.
-// При завершении контекста выполняется последнее сохранение.
-func (ms *MemStorage) RunSaver(ctx context.Context) {
-	interval := ms.storeInterval
+func (ms *MemStorage) RunSaver(ctx context.Context) <-chan struct{} {
+	done := make(chan struct{})
 
-	if interval == 0 {
-		return
+	if ms.storeInterval == 0 {
+		close(done)
+		return done
 	}
 
 	go func() {
+		defer close(done)
+
 		tick := time.Tick(time.Duration(ms.storeInterval) * time.Second)
 
 		for {
 			select {
 			case <-tick:
-				err := ms.Save()
-				if err != nil {
-					ms.logger.Error("Ошибка сохранения метрик", zap.Error(err))
-				}
-			case <-ctx.Done():
-				err := ms.Save()
-				if err != nil {
+				if err := ms.Save(); err != nil {
 					ms.logger.Error("Ошибка сохранения метрик", zap.Error(err))
 				}
 
+			case <-ctx.Done():
 				return
 			}
 		}
 	}()
+
+	return done
 }
 
 // NewMemStorage создаёт новое хранилище метрик.

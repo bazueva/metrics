@@ -7,12 +7,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
+	_ "net/http/pprof"
 	"os/signal"
 	"syscall"
-	"time"
-
-	_ "net/http/pprof"
 
 	dbpkg "github.com/bazueva/metrics/db"
 	"github.com/bazueva/metrics/internal/buildinfo"
@@ -77,15 +74,13 @@ func main() {
 		memStorageRepository = file.NewRepository(cfg.FileStoragePath)
 	}
 
-	ctxWithCancel, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		cancel()
-	}()
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	)
+	defer stop()
 
 	memStorage := storage.NewMemStorage(
 		memStorageRepository,
@@ -93,7 +88,7 @@ func main() {
 		cfg.logger,
 		cfg.StoreInterval,
 	)
-	memStorage.RunSaver(ctxWithCancel)
+	saverDone := memStorage.RunSaver(ctx)
 
 	var privateKey *rsa.PrivateKey
 
@@ -104,9 +99,16 @@ func main() {
 		}
 	}
 
-	startServer(ctxWithCancel, cfg, memStorage, db, privateKey)
+	startServer(ctx, cfg, memStorage, db, privateKey)
 
-	<-ctxWithCancel.Done()
+	// Дожидаемся завершения периодического сохранения.
+	<-saverDone
+
+	// Сохраняем метрики после завершения HTTP-запросов.
+	if err = memStorage.Save(); err != nil {
+		cfg.logger.Error("Ошибка финального сохранения метрик", zap.Error(err))
+	}
+
 	cfg.logger.Info("Программа завершена")
 }
 
@@ -179,10 +181,7 @@ func startServer(
 	<-ctx.Done()
 	cfg.logger.Info("Остановка сервера...")
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	if err := server.Shutdown(context.Background()); err != nil {
 		cfg.logger.Error("Ошибка остановки сервера", zap.Error(err))
 	}
 

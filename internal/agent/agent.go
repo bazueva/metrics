@@ -80,7 +80,7 @@ func (a *agent) Run(ctx context.Context) {
 		wgConsumers.Add(1)
 		go func() {
 			defer wgConsumers.Done()
-			a.senderSnapshot(ctx, runtimeMetricCh)
+			a.senderSnapshot(runtimeMetricCh)
 		}()
 	}
 
@@ -90,7 +90,7 @@ func (a *agent) Run(ctx context.Context) {
 	wgConsumers.Wait()
 }
 
-func (a *agent) senderSnapshot(ctx context.Context, metricCh chan models.Metrics) {
+func (a *agent) senderSnapshot(metricCh chan models.Metrics) {
 	metricStorage := make([]models.Metrics, 0)
 
 	tick := time.Tick(time.Duration(a.reportInterval) * time.Second)
@@ -127,7 +127,7 @@ func (a *agent) runtimeMetricUpdater(ctx context.Context, metricsCh chan models.
 			metrics := a.collector.MetricsSnapshot(counter)
 			counter++
 
-			a.sendMetricToChannel(ctx, metricsCh, metrics)
+			a.sendMetricToChannel(metricsCh, metrics)
 
 		case <-ctx.Done():
 			return
@@ -146,20 +146,19 @@ func (a *agent) extendedMetricUpdater(ctx context.Context, metricsCh chan models
 				a.logger.Error("Ошибка сборка extended метрик", zap.Error(err))
 			}
 
-			a.sendMetricToChannel(ctx, metricsCh, metrics)
+			a.sendMetricToChannel(metricsCh, metrics)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (a *agent) sendMetricToChannel(ctx context.Context, ch chan models.Metrics, metrics []models.Metrics) {
+func (a *agent) sendMetricToChannel(
+	ch chan models.Metrics,
+	metrics []models.Metrics,
+) {
 	for _, value := range metrics {
-		select {
-		case ch <- value:
-		case <-ctx.Done():
-			return
-		}
+		ch <- value
 	}
 }
 
