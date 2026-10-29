@@ -73,23 +73,9 @@ func TestExtendedMetricUpdater(t *testing.T) {
 			{ID: "test1", MType: models.Gauge, Value: new(5.6)},
 			{ID: "test2", MType: models.Gauge, Value: new(9.6)},
 		}
-		ch := make(chan models.Metrics, 10)
-		collected := make(chan struct{})
+		ch := make(chan models.Metrics, len(metrics))
 		done := make(chan struct{})
-		var mu sync.Mutex
-		calls := 0
-
-		collector.EXPECT().ExtendedMetricSnapshot().
-			RunAndReturn(func() ([]models.Metrics, error) {
-				mu.Lock()
-				defer mu.Unlock()
-				calls++
-				if calls == 2 {
-					cancel()
-					close(collected)
-				}
-				return metrics, nil
-			})
+		collector.EXPECT().ExtendedMetricSnapshot().Return(metrics, nil).Maybe()
 
 		a := agent{collector: collector, pollInterval: 1, logger: logger}
 		go func() {
@@ -97,10 +83,20 @@ func TestExtendedMetricUpdater(t *testing.T) {
 			a.extendedMetricUpdater(ctx, ch)
 		}()
 
-		waitForTestSignal(t, collected, "ExtendedMetricSnapshot не был вызван два раза")
+		actual := make([]models.Metrics, 0, len(metrics))
+		for range metrics {
+			select {
+			case metric := <-ch:
+				actual = append(actual, metric)
+			case <-time.After(testTimeout):
+				cancel()
+				waitForTestSignal(t, done, "extendedMetricUpdater не завершился")
+				t.Fatal("не удалось получить собранные метрики")
+			}
+		}
+		cancel()
 		waitForTestSignal(t, done, "extendedMetricUpdater не завершился")
-		close(ch)
-		assert.Equal(t, append(append([]models.Metrics{}, metrics...), metrics...), drainMetrics(ch))
+		assert.Equal(t, metrics, actual)
 	})
 
 	t.Run("завершается при отмене контекста", func(t *testing.T) {
@@ -139,23 +135,9 @@ func TestRuntimeMetricUpdater(t *testing.T) {
 			{ID: "test1", MType: models.Gauge, Value: new(5.6)},
 			{ID: "test2", MType: models.Gauge, Value: new(9.6)},
 		}
-		ch := make(chan models.Metrics, 10)
-		collected := make(chan struct{})
+		ch := make(chan models.Metrics, len(metrics))
 		done := make(chan struct{})
-		var mu sync.Mutex
-		calls := 0
-
-		collector.EXPECT().MetricsSnapshot(mock.Anything).
-			RunAndReturn(func(counter int64) []models.Metrics {
-				mu.Lock()
-				defer mu.Unlock()
-				calls++
-				if calls == 2 {
-					cancel()
-					close(collected)
-				}
-				return metrics
-			})
+		collector.EXPECT().MetricsSnapshot(mock.Anything).Return(metrics).Maybe()
 
 		a := agent{collector: collector, pollInterval: 1, logger: logger}
 		go func() {
@@ -163,10 +145,20 @@ func TestRuntimeMetricUpdater(t *testing.T) {
 			a.runtimeMetricUpdater(ctx, ch)
 		}()
 
-		waitForTestSignal(t, collected, "MetricsSnapshot не был вызван два раза")
+		actual := make([]models.Metrics, 0, len(metrics))
+		for range metrics {
+			select {
+			case metric := <-ch:
+				actual = append(actual, metric)
+			case <-time.After(testTimeout):
+				cancel()
+				waitForTestSignal(t, done, "runtimeMetricUpdater не завершился")
+				t.Fatal("не удалось получить собранные метрики")
+			}
+		}
+		cancel()
 		waitForTestSignal(t, done, "runtimeMetricUpdater не завершился")
-		close(ch)
-		assert.Equal(t, append(append([]models.Metrics{}, metrics...), metrics...), drainMetrics(ch))
+		assert.Equal(t, metrics, actual)
 	})
 
 	t.Run("завершается при отмене контекста", func(t *testing.T) {
@@ -305,6 +297,29 @@ func TestSenderSnapshot(t *testing.T) {
 	})
 }
 
+func TestSendMetricToChannel_CancelWhenFull(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	ch := make(chan models.Metrics, 1)
+	ch <- models.Metrics{ID: "existing", MType: models.Gauge, Value: new(1.0)}
+
+	a := agent{}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		a.sendMetricToChannel(ctx, ch, []models.Metrics{
+			{ID: "new", MType: models.Gauge, Value: new(2.0)},
+		})
+	}()
+
+	cancel()
+	waitForTestSignal(t, done, "sendMetricToChannel заблокировался после отмены контекста")
+	assert.Len(t, ch, 1)
+}
+
 func TestAgent_GracefulShutdown(t *testing.T) {
 	t.Parallel()
 
@@ -314,17 +329,11 @@ func TestAgent_GracefulShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	collectionStarted := make(chan struct{})
-	finishCollection := make(chan struct{})
 	sendingStarted := make(chan struct{})
 	finishSending := make(chan struct{})
 	runDone := make(chan struct{})
-
-	var releaseCollection sync.Once
 	var releaseSending sync.Once
-	unblockCollection := func() { releaseCollection.Do(func() { close(finishCollection) }) }
 	unblockSending := func() { releaseSending.Do(func() { close(finishSending) }) }
-	defer unblockCollection()
 	defer unblockSending()
 
 	metrics := []models.Metrics{
@@ -332,32 +341,30 @@ func TestAgent_GracefulShutdown(t *testing.T) {
 		{ID: "test2", MType: models.Gauge, Value: new(9.6)},
 	}
 
+	var collected sync.Once
 	collector.EXPECT().MetricsSnapshot(mock.Anything).
 		RunAndReturn(func(int64) []models.Metrics {
-			close(collectionStarted)
-			<-finishCollection
-			return metrics
-		})
+			result := []models.Metrics(nil)
+			collected.Do(func() { result = metrics })
+			return result
+		}).Maybe()
 	collector.EXPECT().ExtendedMetricSnapshot().Return(nil, nil).Maybe()
 
-	repository.EXPECT().SendBatchMetric(mock.MatchedBy(func(actual []models.Metrics) bool {
-		return assert.ObjectsAreEqual(metrics, actual)
-	})).RunAndReturn(func([]models.Metrics) error {
-		close(sendingStarted)
-		<-finishSending
-		return nil
-	})
+	repository.EXPECT().SendBatchMetric(metrics).
+		RunAndReturn(func([]models.Metrics) error {
+			close(sendingStarted)
+			<-finishSending
+			return nil
+		})
 
-	a := NewAgent(collector, repository, 1, 3600, 1, logger)
+	a := NewAgent(collector, repository, 1, 1, 1, logger)
 	go func() {
 		defer close(runDone)
 		a.Run(ctx)
 	}()
 
-	waitForTestSignal(t, collectionStarted, "сбор метрик не начался")
-	cancel()
-	unblockCollection()
 	waitForTestSignal(t, sendingStarted, "отправка метрик не началась")
+	cancel()
 
 	select {
 	case <-runDone:

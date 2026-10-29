@@ -249,11 +249,12 @@ func (ms *MemStorage) RunSaver(ctx context.Context) <-chan struct{} {
 	go func() {
 		defer close(done)
 
-		tick := time.Tick(time.Duration(ms.storeInterval) * time.Second)
+		ticker := time.NewTicker(time.Duration(ms.storeInterval) * time.Second)
+		defer ticker.Stop()
 
 		for {
 			select {
-			case <-tick:
+			case <-ticker.C:
 				if err := ms.Save(); err != nil {
 					ms.logger.Error("Ошибка сохранения метрик", zap.Error(err))
 				}

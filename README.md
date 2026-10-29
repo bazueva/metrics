@@ -42,3 +42,18 @@ git fetch template && git checkout template/v2 .github
 - **Clean Architecture**
 - **Hexagonal Architecture**
 - **Layered Architecture**
+
+## Настройка
+
+Для работы с шифрованием необходимо сгенерировать пару RSA-ключей.
+
+Выполнить команду:
+
+    make generate-keys
+
+В результате будут созданы файлы:
+
+- `keys/private.pem` — приватный ключ для сервера.
+- `keys/public.pem` — публичный ключ для агента.
+
+Файлы ключей не хранятся в Git и генерируются локально.

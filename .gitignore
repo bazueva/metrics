@@ -28,4 +28,8 @@ vendor/
 coverage.out
 coverage-filtered.out
 
-keys/private.pem
+keys/
+
+# configs
+cmd/agent/config.json
+cmd/server/config.json

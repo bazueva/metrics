@@ -10,6 +10,7 @@ import (
 	_ "net/http/pprof"
 	"os/signal"
 	"syscall"
+	"time"
 
 	dbpkg "github.com/bazueva/metrics/db"
 	"github.com/bazueva/metrics/internal/buildinfo"
@@ -181,7 +182,10 @@ func startServer(
 	<-ctx.Done()
 	cfg.logger.Info("Остановка сервера...")
 
-	if err := server.Shutdown(context.Background()); err != nil {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		cfg.logger.Error("Ошибка остановки сервера", zap.Error(err))
 	}
 

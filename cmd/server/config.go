@@ -26,7 +26,7 @@ type config struct {
 	AuditURL            string               `env:"AUDIT_URL" json:"audit_url"`
 	PprofPort           int                  `env:"PPROF_PORT" json:"pprof_port"`
 	CryptoKey           string               `env:"CRYPTO_KEY" json:"crypto_key"`
-	ConfigFile          string               `env:"CONFIG" json:"config"`
+	ConfigFile          string               `env:"CONFIG" json:"-"`
 
 	logger *zap.Logger
 }
