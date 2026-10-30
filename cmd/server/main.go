@@ -2,19 +2,19 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
+	_ "net/http/pprof"
 	"os/signal"
 	"syscall"
 	"time"
 
-	_ "net/http/pprof"
-
 	dbpkg "github.com/bazueva/metrics/db"
 	"github.com/bazueva/metrics/internal/buildinfo"
+	"github.com/bazueva/metrics/internal/crypto"
 	"github.com/bazueva/metrics/internal/handler"
 	"github.com/bazueva/metrics/internal/logger"
 	serverMiddleware "github.com/bazueva/metrics/internal/middleware/server"
@@ -75,15 +75,13 @@ func main() {
 		memStorageRepository = file.NewRepository(cfg.FileStoragePath)
 	}
 
-	ctxWithCancel, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		cancel()
-	}()
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	)
+	defer stop()
 
 	memStorage := storage.NewMemStorage(
 		memStorageRepository,
@@ -91,11 +89,27 @@ func main() {
 		cfg.logger,
 		cfg.StoreInterval,
 	)
-	memStorage.RunSaver(ctxWithCancel)
+	saverDone := memStorage.RunSaver(ctx)
 
-	startServer(ctxWithCancel, cfg, memStorage, db)
+	var privateKey *rsa.PrivateKey
 
-	<-ctxWithCancel.Done()
+	if cfg.CryptoKey != "" {
+		privateKey, err = crypto.LoadPrivateKey(cfg.CryptoKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	startServer(ctx, cfg, memStorage, db, privateKey)
+
+	// Дожидаемся завершения периодического сохранения.
+	<-saverDone
+
+	// Сохраняем метрики после завершения HTTP-запросов.
+	if err = memStorage.Save(); err != nil {
+		cfg.logger.Error("Ошибка финального сохранения метрик", zap.Error(err))
+	}
+
 	cfg.logger.Info("Программа завершена")
 }
 
@@ -121,7 +135,13 @@ func createNotifier(cfg config) *notifier.Notifier {
 	return auditNotifier
 }
 
-func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage, db *sql.DB) {
+func startServer(
+	ctx context.Context,
+	cfg config,
+	memStorage *storage.MemStorage,
+	db *sql.DB,
+	privateKey *rsa.PrivateKey,
+) {
 	auditNotifier := createNotifier(cfg)
 	auditNotifier.Start()
 
@@ -129,6 +149,9 @@ func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage
 
 	router := chi.NewRouter()
 	router.Use(logger.ServerLogger(cfg.logger))
+	if privateKey != nil {
+		router.Use(serverMiddleware.DecryptRequest(privateKey))
+	}
 	router.Use(serverMiddleware.UnpackGzip(cfg.logger))
 	router.Use(serverMiddleware.ResponseGzip())
 	if cfg.SecretKey != "" {
@@ -159,7 +182,7 @@ func startServer(ctx context.Context, cfg config, memStorage *storage.MemStorage
 	<-ctx.Done()
 	cfg.logger.Info("Остановка сервера...")
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {

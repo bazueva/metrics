@@ -2,15 +2,16 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
 	"fmt"
 	"log"
-	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/bazueva/metrics/internal/agent"
 	"github.com/bazueva/metrics/internal/agent/collector"
 	"github.com/bazueva/metrics/internal/buildinfo"
+	"github.com/bazueva/metrics/internal/crypto"
 	"github.com/bazueva/metrics/internal/repository/metric"
 	"go.uber.org/zap"
 )
@@ -34,26 +35,32 @@ func main() {
 
 	defer logger.Sync()
 
+	var publicKey *rsa.PublicKey
+
+	if agentConfig.CryptoKey != "" {
+		publicKey, err = crypto.LoadPublicKey(agentConfig.CryptoKey)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	metricRepository, err := metric.NewRepository(
 		fmt.Sprintf("http://%s", agentConfig.MetricServerAddr.String()),
 		agentConfig.SecretKey,
 		logger,
+		publicKey,
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-sigCh
-		logger.Info("Получен Ctrl+C, останавливаемся...")
-		cancel()
-	}()
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	)
+	defer stop()
 
 	metricsAgent := agent.NewAgent(
 		collector.NewCollector(),

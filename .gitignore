@@ -27,3 +27,9 @@ vendor/
 
 coverage.out
 coverage-filtered.out
+
+keys/
+
+# configs
+cmd/agent/config.json
+cmd/server/config.json

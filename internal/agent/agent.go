@@ -80,7 +80,7 @@ func (a *agent) Run(ctx context.Context) {
 		wgConsumers.Add(1)
 		go func() {
 			defer wgConsumers.Done()
-			a.senderSnapshot(ctx, runtimeMetricCh)
+			a.senderSnapshot(runtimeMetricCh)
 		}()
 	}
 
@@ -90,14 +90,15 @@ func (a *agent) Run(ctx context.Context) {
 	wgConsumers.Wait()
 }
 
-func (a *agent) senderSnapshot(ctx context.Context, metricCh chan models.Metrics) {
+func (a *agent) senderSnapshot(metricCh chan models.Metrics) {
 	metricStorage := make([]models.Metrics, 0)
 
-	tick := time.Tick(time.Duration(a.reportInterval) * time.Second)
+	ticker := time.NewTicker(time.Duration(a.reportInterval) * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-tick:
+		case <-ticker.C:
 			if len(metricStorage) == 0 {
 				continue
 			}
@@ -119,11 +120,12 @@ func (a *agent) senderSnapshot(ctx context.Context, metricCh chan models.Metrics
 func (a *agent) runtimeMetricUpdater(ctx context.Context, metricsCh chan models.Metrics) {
 	counter := int64(0)
 
-	tick := time.Tick(time.Duration(a.pollInterval) * time.Second)
+	ticker := time.NewTicker(time.Duration(a.pollInterval) * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-tick:
+		case <-ticker.C:
 			metrics := a.collector.MetricsSnapshot(counter)
 			counter++
 
@@ -136,11 +138,12 @@ func (a *agent) runtimeMetricUpdater(ctx context.Context, metricsCh chan models.
 }
 
 func (a *agent) extendedMetricUpdater(ctx context.Context, metricsCh chan models.Metrics) {
-	tick := time.Tick(time.Duration(a.pollInterval) * time.Second)
+	ticker := time.NewTicker(time.Duration(a.pollInterval) * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-tick:
+		case <-ticker.C:
 			metrics, err := a.collector.ExtendedMetricSnapshot()
 			if err != nil {
 				a.logger.Error("Ошибка сборка extended метрик", zap.Error(err))
@@ -153,7 +156,11 @@ func (a *agent) extendedMetricUpdater(ctx context.Context, metricsCh chan models
 	}
 }
 
-func (a *agent) sendMetricToChannel(ctx context.Context, ch chan models.Metrics, metrics []models.Metrics) {
+func (a *agent) sendMetricToChannel(
+	ctx context.Context,
+	ch chan models.Metrics,
+	metrics []models.Metrics,
+) {
 	for _, value := range metrics {
 		select {
 		case ch <- value:
