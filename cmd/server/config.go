@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 
+	"dario.cat/mergo"
 	configpkg "github.com/bazueva/metrics/cmd/config"
 	"github.com/caarlos0/env/v11"
 	"go.uber.org/zap"
@@ -32,76 +33,58 @@ type config struct {
 }
 
 func readConfig() (config, error) {
-	cfg := config{
-		ServerAddr: configpkg.ServerAddr{
-			Host: "localhost",
-			Port: 8080,
-		},
-	}
+	var cfg config
 
-	providedFlags, err := parseFlags(&cfg)
-	if err != nil {
+	if err := parseFlags(&cfg); err != nil {
 		return config{}, err
 	}
 
-	if err = env.Parse(&cfg); err != nil {
+	if err := env.Parse(&cfg); err != nil {
 		return config{}, err
 	}
 
 	if cfg.ConfigFile != "" {
-		if err = readConfigFromFile(&cfg, providedFlags); err != nil {
+		if err := readConfigFromFile(&cfg); err != nil {
 			return config{}, err
 		}
+	}
+
+	defaultConfig := config{
+		ServerAddr: configpkg.ServerAddr{
+			Host: "localhost",
+			Port: 8080,
+		},
+		StoreInterval:   storeIntervalDefault,
+		FileStoragePath: fileStoragePathDefault,
+	}
+
+	if err := mergo.Merge(&cfg, defaultConfig); err != nil {
+		return config{}, err
 	}
 
 	return cfg, nil
 }
 
-func readConfigFromFile(c *config, providedFlags map[string]bool) error {
-	data, err := os.ReadFile(c.ConfigFile)
+func readConfigFromFile(cfg *config) error {
+	data, err := os.ReadFile(cfg.ConfigFile)
 	if err != nil {
 		return err
 	}
 
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
+	var fileConfig config
+	if err := json.Unmarshal(data, &fileConfig); err != nil {
 		return err
 	}
 
-	for _, field := range []struct {
-		jsonName string
-		flagName string
-		envName  string
-	}{
-		{"address", "a", "ADDRESS"},
-		{"store_interval", "i", "STORE_INTERVAL"},
-		{"store_file", "f", "FILE_STORAGE_PATH"},
-		{"restore", "r", "RESTORE"},
-		{"database_dsn", "d", "DATABASE_DSN"},
-		{"key", "k", "KEY"},
-		{"audit_file", "audit-file", "AUDIT_FILE"},
-		{"audit_url", "audit-url", "AUDIT_URL"},
-		{"pprof_port", "pprof-port", "PPROF_PORT"},
-		{"crypto_key", "crypto-key", "CRYPTO_KEY"},
-	} {
-		if !canUseJSON(field.flagName, field.envName, providedFlags) {
-			delete(fields, field.jsonName)
-		}
-	}
-
-	filtered, err := json.Marshal(fields)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(filtered, c)
+	return mergo.Merge(cfg, fileConfig)
 }
-func parseFlags(config *config) (map[string]bool, error) {
+
+func parseFlags(config *config) error {
 	serverFlags := flag.NewFlagSet("", flag.ContinueOnError)
 
 	serverFlags.Var(&config.ServerAddr, "a", "address http server")
-	serverFlags.IntVar(&config.StoreInterval, "i", storeIntervalDefault, "store interval in seconds")
-	serverFlags.StringVar(&config.FileStoragePath, "f", fileStoragePathDefault, "Storage file path")
+	serverFlags.IntVar(&config.StoreInterval, "i", config.StoreInterval, "store interval in seconds")
+	serverFlags.StringVar(&config.FileStoragePath, "f", config.FileStoragePath, "Storage file path")
 	serverFlags.BoolVar(&config.LoadMetricsFromFile, "r", false, "Load metrics from file")
 	serverFlags.StringVar(&config.DatabaseDSN, "d", "", "Database DSN")
 	serverFlags.StringVar(&config.SecretKey, "k", "", "Ключ для расчета hash")
@@ -112,31 +95,5 @@ func parseFlags(config *config) (map[string]bool, error) {
 	serverFlags.StringVar(&config.ConfigFile, "c", "", "Файл с конфигом")
 	serverFlags.IntVar(&config.PprofPort, "pprof-port", 0, "Pprof port")
 
-	if err := serverFlags.Parse(os.Args[1:]); err != nil {
-		return nil, err
-	}
-
-	providedFlags := make(map[string]bool)
-
-	serverFlags.Visit(func(f *flag.Flag) {
-		providedFlags[f.Name] = true
-	})
-
-	return providedFlags, nil
-}
-
-func canUseJSON(
-	flagName string,
-	envName string,
-	providedFlags map[string]bool,
-) bool {
-	if providedFlags[flagName] {
-		return false
-	}
-
-	if _, exists := os.LookupEnv(envName); exists {
-		return false
-	}
-
-	return true
+	return serverFlags.Parse(os.Args[1:])
 }

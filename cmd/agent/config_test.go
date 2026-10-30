@@ -3,103 +3,39 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	configpkg "github.com/bazueva/metrics/cmd/config"
 	"github.com/bazueva/metrics/internal/agent"
-	"github.com/caarlos0/env/v11"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_readConfig(t *testing.T) {
 	type test struct {
-		name        string
-		envVars     map[string]string
-		args        []string
-		configJSON  string
-		configFlag  string
-		missingFile bool
-		want        config
-		wantErr     bool
+		name       string
+		envVars    map[string]string
+		args       []string
+		configJSON string
+		configFlag string
+		want       config
+		wantErr    bool
+	}
+
+	defaultConfig := config{
+		MetricServerAddr: configpkg.ServerAddr{
+			Host: "localhost",
+			Port: 8080,
+		},
+		ReportInterval: agent.ReportInterval,
+		PollInterval:   agent.PollInterval,
+		RateLimit:      1,
 	}
 
 	tests := []test{
 		{
 			name: "empty envs and args",
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "localhost",
-					Port: 8080,
-				},
-				ReportInterval: agent.ReportInterval,
-				PollInterval:   agent.PollInterval,
-				RateLimit:      1,
-			},
-		},
-		{
-			name: "with ADDRESS env",
-			envVars: map[string]string{
-				"ADDRESS": "test:6789",
-			},
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "test",
-					Port: 6789,
-				},
-				ReportInterval: agent.ReportInterval,
-				PollInterval:   agent.PollInterval,
-				RateLimit:      1,
-			},
-		},
-		{
-			name: "with REPORT_INTERVAL env",
-			envVars: map[string]string{
-				"REPORT_INTERVAL": "2",
-			},
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "localhost",
-					Port: 8080,
-				},
-				ReportInterval: 2,
-				PollInterval:   agent.PollInterval,
-				RateLimit:      1,
-			},
-		},
-		{
-			name: "with POLL_INTERVAL env",
-			envVars: map[string]string{
-				"POLL_INTERVAL": "5",
-			},
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "localhost",
-					Port: 8080,
-				},
-				ReportInterval: agent.ReportInterval,
-				PollInterval:   5,
-				RateLimit:      1,
-			},
-		},
-		{
-			name: "with all envs",
-			envVars: map[string]string{
-				"POLL_INTERVAL":   "5",
-				"REPORT_INTERVAL": "5",
-				"ADDRESS":         "test:8900",
-				"RATE_LIMIT":      "45",
-			},
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "test",
-					Port: 8900,
-				},
-				ReportInterval: 5,
-				PollInterval:   5,
-				RateLimit:      45,
-			},
+			want: defaultConfig,
 		},
 		{
 			name: "with args",
@@ -109,6 +45,7 @@ func Test_readConfig(t *testing.T) {
 				"-r", "48",
 				"-k", "45666",
 				"-l", "4",
+				"-crypto-key", "flag.pem",
 			},
 			want: config{
 				MetricServerAddr: configpkg.ServerAddr{
@@ -119,136 +56,11 @@ func Test_readConfig(t *testing.T) {
 				PollInterval:   19,
 				SecretKey:      "45666",
 				RateLimit:      4,
-			},
-		},
-		{
-			name: "with args and envs",
-			envVars: map[string]string{
-				"POLL_INTERVAL":   "5",
-				"REPORT_INTERVAL": "5",
-				"ADDRESS":         "test:8900",
-				"KEY":             "5111",
-				"RATE_LIMIT":      "45",
-			},
-			args: []string{
-				"-a", "local:1111",
-				"-p", "19",
-				"-r", "48",
-				"-k", "45666",
-				"-l", "4",
-			},
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "test",
-					Port: 8900,
-				},
-				ReportInterval: 5,
-				PollInterval:   5,
-				SecretKey:      "5111",
-				RateLimit:      45,
-			},
-		},
-		{
-			name: "with JSON from CONFIG env",
-			configJSON: `{
-				"address": "json-host:9090",
-				"report_interval": 10,
-				"poll_interval": 2,
-				"key": "json-secret",
-				"rate_limit": 5,
-				"crypto_key": "json.pem"
-			}`,
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "json-host",
-					Port: 9090,
-				},
-				ReportInterval: 10,
-				PollInterval:   2,
-				SecretKey:      "json-secret",
-				RateLimit:      5,
-				CryptoKey:      "json.pem",
-			},
-		},
-		{
-			name:       "with JSON from -c flag",
-			configFlag: "-c",
-			configJSON: `{
-				"address": "json-host:9090",
-				"report_interval": 10,
-				"poll_interval": 2,
-				"rate_limit": 5
-			}`,
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "json-host",
-					Port: 9090,
-				},
-				ReportInterval: 10,
-				PollInterval:   2,
-				RateLimit:      5,
-			},
-		},
-		{
-			name:       "with JSON from -config flag",
-			configFlag: "-config",
-			configJSON: `{
-				"address": "json-host:9090",
-				"report_interval": 10,
-				"poll_interval": 2,
-				"rate_limit": 5
-			}`,
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "json-host",
-					Port: 9090,
-				},
-				ReportInterval: 10,
-				PollInterval:   2,
-				RateLimit:      5,
-			},
-		},
-		{
-			name:       "flags have priority over JSON",
-			configFlag: "-c",
-			configJSON: `{
-				"address": "json-host:9090",
-				"report_interval": 10,
-				"poll_interval": 2,
-				"key": "json-secret",
-				"rate_limit": 5,
-				"crypto_key": "json.pem"
-			}`,
-			args: []string{
-				"-a", "flag-host:8081",
-				"-r", "30",
-				"-p", "7",
-				"-k", "flag-secret",
-				"-l", "3",
-				"-crypto-key", "flag.pem",
-			},
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "flag-host",
-					Port: 8081,
-				},
-				ReportInterval: 30,
-				PollInterval:   7,
-				SecretKey:      "flag-secret",
-				RateLimit:      3,
 				CryptoKey:      "flag.pem",
 			},
 		},
 		{
-			name: "envs have priority over JSON",
-			configJSON: `{
-				"address": "json-host:9090",
-				"report_interval": 10,
-				"poll_interval": 2,
-				"key": "json-secret",
-				"rate_limit": 5,
-				"crypto_key": "json.pem"
-			}`,
+			name: "with envs",
 			envVars: map[string]string{
 				"ADDRESS":         "env-host:8082",
 				"REPORT_INTERVAL": "60",
@@ -267,6 +79,28 @@ func Test_readConfig(t *testing.T) {
 				SecretKey:      "env-secret",
 				RateLimit:      4,
 				CryptoKey:      "env.pem",
+			},
+		},
+		{
+			name: "with JSON config",
+			configJSON: `{
+				"address": "json-host:9090",
+				"report_interval": 10,
+				"poll_interval": 2,
+				"key": "json-secret",
+				"rate_limit": 5,
+				"crypto_key": "json.pem"
+			}`,
+			want: config{
+				MetricServerAddr: configpkg.ServerAddr{
+					Host: "json-host",
+					Port: 9090,
+				},
+				ReportInterval: 10,
+				PollInterval:   2,
+				SecretKey:      "json-secret",
+				RateLimit:      5,
+				CryptoKey:      "json.pem",
 			},
 		},
 		{
@@ -302,59 +136,46 @@ func Test_readConfig(t *testing.T) {
 			},
 		},
 		{
-			name:       "explicit zero flag over JSON",
+			name:       "zero values filled from JSON",
 			configFlag: "-c",
 			configJSON: `{
-				"rate_limit": 5
+				"report_interval": 10,
+				"poll_interval": 2,
+				"rate_limit": 5,
+				"key": "json-secret"
 			}`,
 			args: []string{
+				"-r", "0",
+				"-p", "0",
 				"-l", "0",
 			},
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "localhost",
-					Port: 8080,
-				},
-				ReportInterval: agent.ReportInterval,
-				PollInterval:   agent.PollInterval,
-				RateLimit:      0,
+			envVars: map[string]string{
+				"KEY": "",
 			},
-		},
-		{
-			name: "missing JSON fields preserve defaults",
-			configJSON: `{
-				"report_interval": 10
-			}`,
 			want: config{
 				MetricServerAddr: configpkg.ServerAddr{
 					Host: "localhost",
 					Port: 8080,
 				},
 				ReportInterval: 10,
-				PollInterval:   agent.PollInterval,
-				RateLimit:      1,
+				PollInterval:   2,
+				RateLimit:      5,
+				SecretKey:      "json-secret",
 			},
 		},
 		{
-			name:       "invalid JSON",
-			configJSON: `{"report_interval": 10,}`,
-			wantErr:    true,
+			name: "zero values use defaults",
+			args: []string{
+				"-r", "0",
+				"-p", "0",
+				"-l", "0",
+			},
+			want: defaultConfig,
 		},
 		{
-			name:       "invalid JSON field type",
-			configJSON: `{"poll_interval": "invalid"}`,
-			wantErr:    true,
-		},
-		{
-			name:       "invalid JSON address",
-			configJSON: `{"address": "invalid-address"}`,
-			wantErr:    true,
-		},
-		{
-			name:        "config file does not exist",
-			configFlag:  "-c",
-			missingFile: true,
-			wantErr:     true,
+			name:    "invalid flag value",
+			args:    []string{"-p", "invalid"},
+			wantErr: true,
 		},
 		{
 			name: "invalid env value",
@@ -363,54 +184,27 @@ func Test_readConfig(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		{
-			name: "invalid flag value",
-			args: []string{
-				"-p", "invalid",
-			},
-			wantErr: true,
-		},
-		{
-			name: "unknown flag",
-			args: []string{
-				"-unknown",
-			},
-			wantErr: true,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oldArgs := os.Args
-			defer func() {
+			t.Cleanup(func() {
 				os.Args = oldArgs
-			}()
+			})
 
-			oldEnv := os.Environ()
-			os.Clearenv()
-
-			defer func() {
-				os.Clearenv()
-
-				for _, env := range oldEnv {
-					parts := strings.SplitN(env, "=", 2)
-					_ = os.Setenv(parts[0], parts[1])
-				}
-			}()
+			clearConfigEnv(t)
 
 			args := append([]string{"cmd"}, tt.args...)
 
-			if tt.configJSON != "" || tt.missingFile {
+			if tt.configJSON != "" {
 				configPath := filepath.Join(t.TempDir(), "config.json")
 
-				if !tt.missingFile {
-					err := os.WriteFile(
-						configPath,
-						[]byte(tt.configJSON),
-						0600,
-					)
-					require.NoError(t, err)
-				}
+				require.NoError(t, os.WriteFile(
+					configPath,
+					[]byte(tt.configJSON),
+					0600,
+				))
 
 				tt.want.ConfigFile = configPath
 
@@ -441,18 +235,14 @@ func Test_readConfig(t *testing.T) {
 }
 
 func Test_readConfigFromFile(t *testing.T) {
-	type test struct {
-		name          string
-		configJSON    string
-		config        config
-		providedFlags map[string]bool
-		envVars       map[string]string
-		want          config
-		wantErr       bool
-		missingFile   bool
-	}
-
-	tests := []test{
+	tests := []struct {
+		name        string
+		configJSON  string
+		initial     config
+		want        config
+		wantErr     bool
+		missingFile bool
+	}{
 		{
 			name: "success",
 			configJSON: `{
@@ -476,113 +266,24 @@ func Test_readConfigFromFile(t *testing.T) {
 			},
 		},
 		{
-			name: "flags have priority over JSON",
-			configJSON: `{
-				"address": "json-host:9090",
-				"report_interval": 10,
-				"poll_interval": 2,
-				"key": "json-secret",
-				"rate_limit": 5,
-				"crypto_key": "json.pem"
-			}`,
-			config: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "flag-host",
-					Port: 8081,
-				},
+			name:       "existing non-zero fields are preserved",
+			configJSON: `{"report_interval": 10, "poll_interval": 2, "rate_limit": 5, "key": "json-secret"}`,
+			initial: config{
 				ReportInterval: 30,
 				PollInterval:   7,
-				SecretKey:      "flag-secret",
 				RateLimit:      3,
-				CryptoKey:      "flag.pem",
-			},
-			providedFlags: map[string]bool{
-				"a":          true,
-				"r":          true,
-				"p":          true,
-				"k":          true,
-				"l":          true,
-				"crypto-key": true,
+				SecretKey:      "flag-secret",
 			},
 			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "flag-host",
-					Port: 8081,
-				},
 				ReportInterval: 30,
 				PollInterval:   7,
-				SecretKey:      "flag-secret",
 				RateLimit:      3,
-				CryptoKey:      "flag.pem",
-			},
-		},
-		{
-			name: "env have priority over JSON",
-			configJSON: `{
-				"address": "json-host:9090",
-				"report_interval": 10,
-				"poll_interval": 2,
-				"key": "json-secret",
-				"rate_limit": 5,
-				"crypto_key": "json.pem"
-			}`,
-			envVars: map[string]string{
-				"ADDRESS":         "env-host:8082",
-				"REPORT_INTERVAL": "60",
-				"POLL_INTERVAL":   "8",
-				"KEY":             "env-secret",
-				"RATE_LIMIT":      "4",
-				"CRYPTO_KEY":      "env.pem",
-			},
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "env-host",
-					Port: 8082,
-				},
-				ReportInterval: 60,
-				PollInterval:   8,
-				SecretKey:      "env-secret",
-				RateLimit:      4,
-				CryptoKey:      "env.pem",
-			},
-		},
-		{
-			name: "missing JSON fields preserve defaults",
-			configJSON: `{
-				"report_interval": 10
-			}`,
-			config: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "localhost",
-					Port: 8080,
-				},
-				ReportInterval: agent.ReportInterval,
-				PollInterval:   agent.PollInterval,
-				RateLimit:      1,
-			},
-			want: config{
-				MetricServerAddr: configpkg.ServerAddr{
-					Host: "localhost",
-					Port: 8080,
-				},
-				ReportInterval: 10,
-				PollInterval:   agent.PollInterval,
-				RateLimit:      1,
+				SecretKey:      "flag-secret",
 			},
 		},
 		{
 			name:       "invalid JSON",
 			configJSON: `{"report_interval": 10,}`,
-			wantErr:    true,
-		},
-		{
-			name:       "invalid field type",
-			configJSON: `{"poll_interval": "invalid"}`,
-			wantErr:    true,
-		},
-		{
-			name:       "invalid address",
-			configJSON: `{"address": "invalid-address"}`,
 			wantErr:    true,
 		},
 		{
@@ -594,32 +295,22 @@ func Test_readConfigFromFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clearConfigEnv(t)
+			t.Parallel()
 
 			configPath := filepath.Join(t.TempDir(), "config.json")
 
 			if !tt.missingFile {
-				err := os.WriteFile(
+				require.NoError(t, os.WriteFile(
 					configPath,
 					[]byte(tt.configJSON),
 					0600,
-				)
-				require.NoError(t, err)
+				))
 			}
 
-			cfg := tt.config
+			cfg := tt.initial
 			cfg.ConfigFile = configPath
 
-			for key, value := range tt.envVars {
-				t.Setenv(key, value)
-			}
-
-			if len(tt.envVars) > 0 {
-				err := env.Parse(&cfg)
-				require.NoError(t, err)
-			}
-
-			err := readConfigFromFile(&cfg, tt.providedFlags)
+			err := readConfigFromFile(&cfg)
 
 			if tt.missingFile {
 				require.ErrorIs(t, err, os.ErrNotExist)

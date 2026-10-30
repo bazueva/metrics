@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 
+	"dario.cat/mergo"
 	configpkg "github.com/bazueva/metrics/cmd/config"
 	"github.com/bazueva/metrics/internal/agent"
 	"github.com/caarlos0/env/v11"
@@ -21,100 +22,64 @@ type config struct {
 }
 
 func readConfig() (config, error) {
-	agentConfig := config{
+	var agentConfig config
+
+	if err := parseFlags(&agentConfig); err != nil {
+		return config{}, err
+	}
+
+	if err := env.Parse(&agentConfig); err != nil {
+		return config{}, err
+	}
+
+	if agentConfig.ConfigFile != "" {
+		if err := readConfigFromFile(&agentConfig); err != nil {
+			return config{}, err
+		}
+	}
+
+	defaultConfig := config{
 		MetricServerAddr: configpkg.ServerAddr{
 			Host: "localhost",
 			Port: 8080,
 		},
+		PollInterval:   agent.PollInterval,
+		ReportInterval: agent.ReportInterval,
+		RateLimit:      1,
 	}
 
-	providedFlags, err := parseFlags(&agentConfig)
-	if err != nil {
-		return agentConfig, err
-	}
-
-	if err = env.Parse(&agentConfig); err != nil {
-		return agentConfig, err
-	}
-
-	if agentConfig.ConfigFile != "" {
-		if err = readConfigFromFile(&agentConfig, providedFlags); err != nil {
-			return agentConfig, err
-		}
+	if err := mergo.Merge(&agentConfig, defaultConfig); err != nil {
+		return config{}, err
 	}
 
 	return agentConfig, nil
 }
 
-func parseFlags(config *config) (map[string]bool, error) {
+func parseFlags(config *config) error {
 	agentFlags := flag.NewFlagSet("", flag.ContinueOnError)
 
 	agentFlags.Var(&config.MetricServerAddr, "a", "Адрес сервера для отправки метрик")
-	agentFlags.IntVar(&config.PollInterval, "p", agent.PollInterval, "Частота опроса метрик")
-	agentFlags.IntVar(&config.ReportInterval, "r", agent.ReportInterval, "Частота отправки метрик на сервер")
+	agentFlags.IntVar(&config.PollInterval, "p", config.PollInterval, "Частота опроса метрик")
+	agentFlags.IntVar(&config.ReportInterval, "r", config.ReportInterval, "Частота отправки метрик на сервер")
 	agentFlags.StringVar(&config.SecretKey, "k", "", "Ключ для расчета hash")
 	agentFlags.StringVar(&config.CryptoKey, "crypto-key", "", "Файл с публичным ключом")
 	agentFlags.StringVar(&config.ConfigFile, "config", "", "Файл с конфигом")
 	agentFlags.StringVar(&config.ConfigFile, "c", "", "Файл с конфигом")
-	agentFlags.IntVar(&config.RateLimit, "l", 1, "Количество горутин")
+	agentFlags.IntVar(&config.RateLimit, "l", config.RateLimit, "Количество горутин")
 
-	if err := agentFlags.Parse(os.Args[1:]); err != nil {
-		return nil, err
-	}
-
-	providedFlags := make(map[string]bool)
-
-	agentFlags.Visit(func(f *flag.Flag) {
-		providedFlags[f.Name] = true
-	})
-
-	return providedFlags, nil
+	return agentFlags.Parse(os.Args[1:])
 }
 
-func readConfigFromFile(c *config, providedFlags map[string]bool) error {
+func readConfigFromFile(c *config) error {
 	data, err := os.ReadFile(c.ConfigFile)
 	if err != nil {
 		return err
 	}
 
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
+	var fileConfig config
+	if err := json.Unmarshal(data, &fileConfig); err != nil {
 		return err
 	}
 
-	for _, field := range []struct {
-		jsonName string
-		flagName string
-		envName  string
-	}{
-		{"address", "a", "ADDRESS"},
-		{"report_interval", "r", "REPORT_INTERVAL"},
-		{"poll_interval", "p", "POLL_INTERVAL"},
-		{"key", "k", "KEY"},
-		{"rate_limit", "l", "RATE_LIMIT"},
-		{"crypto_key", "crypto-key", "CRYPTO_KEY"},
-	} {
-		if !canUseJSON(field.flagName, field.envName, providedFlags) {
-			delete(fields, field.jsonName)
-		}
-	}
-
-	filtered, err := json.Marshal(fields)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(filtered, c)
-}
-
-func canUseJSON(flagName, envName string, providedFlags map[string]bool) bool {
-	if providedFlags[flagName] {
-		return false
-	}
-
-	if _, exists := os.LookupEnv(envName); exists {
-		return false
-	}
-
-	return true
+	return mergo.Merge(c, fileConfig)
 }
